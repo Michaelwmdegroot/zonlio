@@ -54,6 +54,14 @@ Hostinger voert de planning in UTC uit. Iedere vijf minuten werkt hetzelfde bij 
 
 Sla **één** crontaak op. Controleer bestaande taken op doublures; vervang een bekende oude Zonlio-maintenance-taak gecontroleerd. Verwijder geen onbekende taken voor andere websites. Stel na installatie in de appconfiguratie `OPS_EXPECT_CRON=true` in en laat de app die configuratie opnieuw laden via de normale hPanel-herstart/deploy. Dit verwacht een recente heartbeat, maar geeft geen account, adviesformulier of dagmail vrij.
 
+### Diagnose: direct script eindigt stil via `hbuilds/current` (14 november 2026)
+
+Tijdens de werkelijke eigenaarstest werd de Hostinger-terminalopdracht met `.../hbuilds/current/nodejs/scripts/maintenance.mjs` gestart, maar er verscheen geen JSON en geen fout; tegelijk toonde Zonlio Beheer **0 geslaagde ticks en geen onderhoudsregels**. Dit is **geen** succesbewijs. De eerdere directe-startvoorwaarde vergeleek de module-URL letterlijk met `process.argv[1]`. Als `current` een symbolische link is, resolveert Node de module-URL naar de fysieke deployment maar behoudt het commandlinepad; de voorwaarde kon dan onterecht `false` zijn en de taak stil overslaan.
+
+De code vergelijkt nu ook het fysieke pad van de opdracht via `realpathSync`, terwijl module-importen door tests het onderhoud niet starten. Een synthetische regressietest voert de echte CLI via een tijdelijke `current`-symlink uit met bewust ongeldig cronsecret: **de CLI moet nu veilig stoppen met niet-nul exitstatus en een geschoonde fout**, in plaats van zonder output exitstatus 0 terug te geven. Deze test benadert géén productie-API en verstuurt geen e-mail.
+
+**Hercontrole na groene CI en deployment:** verifieer privé dat `MAIL_SEND_PAUSED=true` staat (in de eerste eigenaarswaarneming stond globale mailverwerking nog op **Beschikbaar**), houd alle publieke gates en Portal-export uit, voer dan één keer de exacte bestaande terminalopdracht uit. Verwacht JSON met `status: "completed"` of een geschoonde fout, niet een lege prompt. Controleer tegelijkertijd `Laatste onderhoudscontroles` in Zonlio Beheer. Als nog steeds geen ticks volgen, controleer het bestaande `.env`-pad/`CRON_SECRET` en het resultaat, zonder secrets te delen; pas na bewezen ticks `OPS_EXPECT_CRON=true` en doe de herstartproef. De fix levert op zichzelf **geen** productiecron- of inboxbewijs.
+
 ### Output begrijpen
 
 Bekijk de uitvoer van de geplande taak in hPanel. Voorbeelden hieronder zijn **voorbeeldvormen**, geen productieobservaties:

@@ -12,3 +12,27 @@ test('cron rejects wrong origin, credentials in URLs, shared secret and HTTP200 
   await assert.rejects(runMaintenance({env,fetchImpl:async()=>Response.json({ok:true})}),/MAINTENANCE_NOT_CONFIRMED/);
   assert.equal((await runMaintenance({env,fetchImpl:async()=>Response.json({status:'busy'},{status:202})})).status,'busy');
 });
+
+
+test('Hostinger-style current symlink still executes CLI, without requiring network access', async t=>{
+  const {mkdtemp,symlink,rm}=await import('node:fs/promises');
+  const {tmpdir}=await import('node:os');
+  const {join}=await import('node:path');
+  const {fileURLToPath}=await import('node:url');
+  const {spawnSync}=await import('node:child_process');
+  const folder=await mkdtemp(join(tmpdir(),'zonlio-maintenance-entry-'));
+  t.after(()=>rm(folder,{recursive:true,force:true}));
+  const actualProject=fileURLToPath(new URL('..',import.meta.url));
+  await symlink(actualProject,join(folder,'current'),'dir');
+  const linkedEntry=join(folder,'current','scripts','maintenance.mjs');
+  // A deliberately invalid secret must fail before any fetch. Before this fix,
+  // the symlinked script silently exited 0 and produced no output at all.
+  const processResult=spawnSync(process.execPath,[linkedEntry],{
+    encoding:'utf8',timeout:10000,
+    env:{...process.env,NODE_ENV:'production',APP_URL:'https://zonlio.nl',CRON_SECRET:'intentionally-invalid',SESSION_SECRET:'different-session'},
+  });
+  assert.equal(processResult.error,undefined);
+  assert.equal(processResult.status,1,'The linked entry must run and reject invalid configuration');
+  assert.match(processResult.stderr,/Onderhoud niet bevestigd/);
+  assert.equal(processResult.stdout,'');
+});

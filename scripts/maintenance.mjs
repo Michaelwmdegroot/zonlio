@@ -1,3 +1,4 @@
+import {realpathSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
@@ -17,7 +18,18 @@ export async function runMaintenance({env=process.env,fetchImpl=fetch}={}) {
   const count=value=>Number.isSafeInteger(value)&&value>=0?value:0;
   return {ok:true,status:'completed',processed:count(data.processed),sent:count(data.sent),failed:count(data.failed),memberAccepted:count(data.members?.sent?.accepted),expiredContactRequests:count(data.contacts?.expired)};
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href) {
+// Hostinger's hbuilds/current path can be a symlink to the real deployment.
+// Node resolves the module URL but keeps the command-line entry path as supplied.
+// Accept both names of the same file; do not run when imported by unit tests.
+function invokedDirectly() {
+  if (!process.argv[1]) return false;
+  try {
+    const launchedPath = resolve(process.argv[1]);
+    return import.meta.url === pathToFileURL(launchedPath).href ||
+      import.meta.url === pathToFileURL(realpathSync(launchedPath)).href;
+  } catch { return false; }
+}
+if(invokedDirectly()) {
   try {console.log(JSON.stringify(await runMaintenance()));}
   catch {console.error('Onderhoud niet bevestigd. Controleer veilige configuratie, cronuitvoer en Zonlio-beheer; geen geheimen delen.');process.exitCode=1;}
 }
