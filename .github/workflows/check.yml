@@ -1,0 +1,45 @@
+name: Check application
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: zonlio-ci-root-only
+          MYSQL_DATABASE: zonlio_ci_test
+          MYSQL_USER: zonlio_ci
+          MYSQL_PASSWORD: zonlio-ci-test-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1 -uroot -pzonlio-ci-root-only --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm test
+      - name: Verify real MySQL 8 transactions
+        run: node --test tests/mysql.integration.test.mjs
+        env:
+          MYSQL_TEST: '1'
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: zonlio_ci_test
+          DB_USER: zonlio_ci
+          DB_PASSWORD: zonlio-ci-test-only
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high

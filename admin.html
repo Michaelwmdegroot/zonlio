@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#f6f7f9">
+  <title>Zonlio · Beheer</title>
+  <link rel="icon" type="image/svg+xml" href="/public/icon.svg">
+  <link rel="stylesheet" href="/src/style.css">
+  <link rel="stylesheet" href="/src/admin.css">
+</head>
+<body class="admin-body">
+  <a class="skip-link" href="#admin-main">Ga naar beheerinhoud</a>
+  <header class="admin-header"><a class="brand" href="/admin" aria-label="Zonlio beheer"><svg class="brand-icon" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12" fill="#2268e8"/><path d="M9 26c4 0 4-11 8-11s4 13 8 13 4-8 7-8" fill="none" stroke="white" stroke-width="3.2" stroke-linecap="round"/><circle cx="29" cy="11" r="3.2" fill="#ffd166"/></svg><span>Zonlio</span><span class="admin-label">beheer</span></a><div class="admin-header-actions"><a href="/">Bekijk website ↗</a><span id="admin-account"></span></div></header>
+  <main id="admin-main" class="admin-main" tabindex="-1"><div class="admin-initial" role="status">Beheeromgeving openen…</div></main>
+  <footer class="admin-footer"><span>Zonlio · Aanvragen zorgvuldig opvolgen.</span><a href="/privacy">Privacyverklaring</a></footer>
+  <dialog id="admin-dialog" aria-labelledby="admin-dialog-title"><div id="admin-dialog-content"></div><button class="dialog-close icon-button" type="button" data-admin-action="close-dialog" aria-label="Sluiten">×</button></dialog>
+  <div id="admin-toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript><div class="noscript">Schakel JavaScript in om de beschermde beheeromgeving te gebruiken.</div></noscript>
+  <script type="module" src="/src/admin.mjs"></script>
+</body>
+</html>

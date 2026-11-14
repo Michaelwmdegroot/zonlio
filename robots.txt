@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /__qa/
+Sitemap: https://zonlio.nl/sitemap.xml

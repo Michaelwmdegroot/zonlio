@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f6f7f9">
+  <meta name="description" content="Zonlio maakt stroomprijzen helder. Bekijk gepubliceerde prijzen, plan je stroomverbruik en bereken scenario's voor zonnepanelen in 2027 en een thuisbatterij.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://zonlio.nl/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="nl_NL">
+  <meta property="og:site_name" content="Zonlio">
+  <meta property="og:title" content="Zonlio — Jouw stroom. Helder in beeld.">
+  <meta property="og:description" content="Actuele stroomprijzen, slim plannen en inzicht in je zonnepanelen na salderen.">
+  <meta property="og:url" content="https://zonlio.nl/">
+  <title>Zonlio — Jouw stroom. Helder in beeld.</title>
+  <link rel="icon" type="image/svg+xml" href="/public/icon.svg">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Ga naar inhoud</a>
+  <header class="app-header">
+    <div class="header-inner">
+      <a class="brand" href="#overzicht" aria-label="Zonlio overzicht">
+        <svg class="brand-icon" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12" fill="#2268e8"/><path d="M9 26c4 0 4-11 8-11s4 13 8 13 4-8 7-8" fill="none" stroke="white" stroke-width="3.2" stroke-linecap="round"/><circle cx="29" cy="11" r="3.2" fill="#ffd166"/></svg>
+        <span data-brand>Zonlio</span>
+      </a>
+      <nav class="desktop-nav" aria-label="Hoofdnavigatie">
+        <a href="#overzicht" data-nav="overzicht">Overzicht</a>
+        <a href="#planner" data-nav="planner">Slim plannen</a>
+        <a href="#2027" data-nav="2027">Mijn 2027</a>
+        <a href="#batterij" data-nav="batterij">Thuisbatterij</a>
+      </nav>
+      <button class="profile-button" data-action="profile" aria-label="Mijn huis en instellingen"><span class="icon" data-icon="home"></span><span>Mijn huis</span><span class="profile-dot"></span></button>
+    </div>
+  </header>
+  <main id="main" class="main" tabindex="-1"></main>
+  <footer class="app-footer"><span>Jouw stroom. Helder in beeld.</span><div><button data-action="sources">Bronnen & aannames</button><button data-action="privacy">Privacykeuzes</button><a href="/privacy">Privacyverklaring</a><a href="/contact">Contact</a><span>© <span data-brand>Zonlio</span></span></div></footer>
+  <nav class="mobile-nav" aria-label="Mobiele hoofdnavigatie">
+    <a href="#overzicht" data-nav="overzicht"><span data-icon="chart"></span><span>Overzicht</span></a>
+    <a href="#planner" data-nav="planner"><span data-icon="sun"></span><span>Planner</span></a>
+    <a href="#2027" data-nav="2027"><span data-icon="calendar"></span><span>Mijn 2027</span></a>
+    <a href="#batterij" data-nav="batterij"><span data-icon="battery"></span><span>Batterij</span></a>
+  </nav>
+  <dialog id="app-dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div><button class="dialog-close icon-button" data-action="close-dialog" aria-label="Sluiten"><span data-icon="close"></span></button></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript><div class="noscript"><h1>Je stroom, helder in beeld.</h1><p>Zonlio helpt je met gepubliceerde stroomprijzen, slim verbruik en scenario's voor je zonnepanelen in 2027. Schakel JavaScript in voor de interactieve grafieken en berekeningen.</p><p>Je kunt ons bereiken via <a href="mailto:info@zonlio.nl">info@zonlio.nl</a>. Lees onze <a href="/privacy">privacyverklaring</a> of bekijk <a href="/contact">contactgegevens</a>.</p></div></noscript>
+  <script type="module" src="/src/app.mjs"></script>
+</body>
+</html>
