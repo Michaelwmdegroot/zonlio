@@ -129,7 +129,7 @@ if (direct) {
   function startupDiagnostic(stage,error) {
     const code=typeof error?.code==='string'&&/^[A-Z][A-Z0-9_]{1,60}$/.test(error.code)?error.code:'UNSPECIFIED';
     const type=error instanceof Error?error.name:'UnknownError';
-    const frame=String(error?.stack||'').split('\\n').slice(1,3).map(s=>s.trim()).join(' | ').slice(0,300);
+    const frame=String(error?.stack||'').split(String.fromCharCode(10)).slice(1,3).map(s=>s.trim()).join(' | ').slice(0,300);
     console.error('ZONLIO_STARTUP_DIAGNOSTIC',JSON.stringify({stage,type,code,frame}));
   }
   try {
