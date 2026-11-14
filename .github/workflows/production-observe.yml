@@ -41,6 +41,14 @@ jobs:
             echo '::error::Expected public release or route checks not verified. Read the sanitized report; do not infer a full outage or full release approval.'
             exit 1
           fi
+      - name: Observe public mail DNS (informational, no delivery claim)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p /tmp/zonlio-public-observation
+          node scripts/mail-dns.mjs > /tmp/zonlio-public-observation/mail-dns.json
+          cat /tmp/zonlio-public-observation/mail-dns.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
