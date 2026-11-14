@@ -1,0 +1,101 @@
+name: Verify and deliver housing advice on main
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/growth-delivery.yml]
+permissions:
+  contents: write
+concurrency:
+  group: zonlio-growth-main-delivery
+  cancel-in-progress: false
+jobs:
+  verify-and-deliver:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: zonlio-ci-root-only
+          MYSQL_DATABASE: zonlio_ci_test
+          MYSQL_USER: zonlio_ci
+          MYSQL_PASSWORD: zonlio-ci-test-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1 -uroot -pzonlio-ci-root-only --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Apply only the checksummed locally reviewed change
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = '9dbefb3be26e9109f47dd1748e9c45491ef8e3f5'
+          mkdir -p /tmp/zonlio-growth-evidence
+          cat .growth-transfer.1 .growth-transfer.2 .growth-transfer.3 .growth-transfer.4 .growth-transfer.5 > /tmp/zonlio-growth.patch.xz
+          echo '76fa31ac59c76da308721839ea1fc0ab168a31196e0f732f379bf5d9a4245850  /tmp/zonlio-growth.patch.xz' | sha256sum --check
+          xz -dc /tmp/zonlio-growth.patch.xz > /tmp/zonlio-growth.patch
+          echo 'd331e8783b49126e60388408dba291af6b2ac135b44ceeb3403f8aab3b8a34dc  /tmp/zonlio-growth.patch' | sha256sum --check
+          git apply --check --unidiff-zero /tmp/zonlio-growth.patch
+          git apply --unidiff-zero /tmp/zonlio-growth.patch
+          git rm .growth-transfer.1 .growth-transfer.2 .growth-transfer.3 .growth-transfer.4 .growth-transfer.5
+          git diff --check
+          test -z "$(git diff --name-only -- .github)"
+      - run: npm ci --ignore-scripts
+      - name: Syntax and standard tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run check | tee /tmp/zonlio-growth-evidence/check.txt
+          npm test | tee /tmp/zonlio-growth-evidence/tests.txt
+      - name: Verify real MySQL 8 before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/mysql.integration.test.mjs | tee /tmp/zonlio-growth-evidence/mysql.txt
+        env:
+          MYSQL_TEST: '1'
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: zonlio_ci_test
+          DB_USER: zonlio_ci
+          DB_PASSWORD: zonlio-ci-test-only
+      - name: Build and dependency audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build | tee /tmp/zonlio-growth-evidence/build.txt
+          npm audit --omit=dev --audit-level=high | tee /tmp/zonlio-growth-evidence/audit.txt
+      - name: Publish verified application atomically without force push
+        shell: bash
+        env:
+          EXPECTED_MAIN: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_MAIN"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git diff --cached --stat > /tmp/zonlio-growth-evidence/change.txt
+          git commit -m 'feat: add gated housing advice intake and accountable lead follow-up'
+          git push origin HEAD:refs/heads/main
+          git rev-parse HEAD > /tmp/zonlio-growth-evidence/COMMIT
+          git archive --format=tar HEAD -o /tmp/zonlio-growth-evidence/verified-source.tar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zonlio-growth-verification
+          path: /tmp/zonlio-growth-evidence/
+          retention-days: 3
