@@ -1,6 +1,6 @@
 # Actuele release
 
-De huidige afrondingsrelease is `autonomy-ready-04-20261114`. Zie [het volledige releasebewijs en GO/HOLD per dienst](AUTONOMY-04-RELEASE-2026-11-14.md), de [masterchecklist](COMPLETION-MASTER-CHECKLIST-2026-11-14.md) en het [operationsrunbook](AUTONOMOUS-OPERATIONS.md). De bevestigde exploitant is NIVO Groep Holland BV. Publieke commerciële functies en Portal blijven afzonderlijk vrij te geven.
+De huidige codeversie is `nivo-workbench-05-20261115`. Release 05 voegt de Pim-werkvoorraad toe (PR #15) en een afzonderlijke read-only productiecheck die ook het nieuwe beheer-JavaScript controleert. Release 04 (`autonomy-ready-04-20261114`) blijft het onderliggende technische afrondingsbewijs. Zie [het volledige releasebewijs en GO/HOLD per dienst](AUTONOMY-04-RELEASE-2026-11-14.md), de [masterchecklist](COMPLETION-MASTER-CHECKLIST-2026-11-14.md) en het [operationsrunbook](AUTONOMOUS-OPERATIONS.md). De bevestigde exploitant is NIVO Groep Holland BV. De nieuwe werkvoorraad bevat geen extra commerciële contactrechten en verstuurt geen e-mails. Publieke adviesintake, accounts, dagmail en Portal blijven afzonderlijk vrij te geven. De live versie en feitelijke Hostinger-cron moeten opnieuw onafhankelijk worden vastgesteld; een groene code-PR is daarvoor geen bewijs.
 
 ## Historisch: technische pilot vóór groei- en afrondingsreleases
 
