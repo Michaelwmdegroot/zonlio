@@ -1,70 +1,49 @@
 name: Observe public Zonlio deployment
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: [.github/workflows/production-observe.yml]
+  workflow_run:
+    workflows: [Check application]
+    types: [completed]
 permissions:
   contents: read
+concurrency:
+  group: zonlio-public-observation
+  cancel-in-progress: false
 jobs:
   observe:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 8
     steps:
-      - name: Read public health and feature state only
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Observe expected application and protected routes without credentials
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/zonlio-public-observation
-          python3 - <<'PY'
-          import datetime, json, pathlib, time, urllib.request
-          report = {'checkedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'scope': 'Unauthenticated GET only. Not an SMTP, inbox, login, lead, cron, restore or Portal test.', 'endpoints': {}}
-          paths = ['/api/health', '/api/config']
-          for path in paths:
-              observation = {'accessible': False}
-              for attempt in range(3):
-                  try:
-                      request = urllib.request.Request('https://zonlio.nl' + path, headers={'User-Agent': 'Zonlio-Deployment-Monitor/1.0', 'Accept': 'application/json', 'Cache-Control': 'no-cache'})
-                      with urllib.request.urlopen(request, timeout=12) as response:
-                          raw = response.read(65537)
-                          if len(raw) > 65536:
-                              raise ValueError('Response too large')
-                          data = json.loads(raw)
-                          if not isinstance(data, dict):
-                              raise ValueError('Unexpected response shape')
-                          observation = {'accessible': True, 'httpStatus': response.status}
-                          if path == '/api/health':
-                              observation['ok'] = data.get('ok')
-                              observation['version'] = data.get('version')
-                              observation['releaseId'] = data.get('releaseId')
-                              services = data.get('services') or {}
-                              observation['services'] = {k: services.get(k) for k in ['databaseReady', 'adminConfigured', 'mailConfigured', 'leadEnabled', 'housingAdviceEnabled'] if type(services.get(k)) is bool}
-                          else:
-                              for k in ['leadEnabled', 'housingAdviceEnabled', 'operatorConfigured', 'adminConfigured']:
-                                  if type(data.get(k)) is bool:
-                                      observation[k] = data[k]
-                              controller = data.get('controller') or {}
-                              observation['controllerName'] = str(controller.get('name', ''))[:100]
-                              members = data.get('members') or {}
-                              observation['memberBooleanFlags'] = {k: v for k, v in members.items() if type(v) is bool}
-                      break
-                  except Exception as error:
-                      observation = {'accessible': False, 'errorType': type(error).__name__}
-                      if attempt < 2:
-                          time.sleep(5)
-              report['endpoints'][path] = observation
-          health = report['endpoints'].get('/api/health', {})
-          report['expectedApplicationReleaseObserved'] = health.get('releaseId') == 'growth-02-20261114'
-          report['productionEndToEndVerified'] = False
-          target = pathlib.Path('/tmp/zonlio-public-observation/observation.json')
-          target.write_text(json.dumps(report, ensure_ascii=False, indent=2))
-          print(target.read_text())
-          if not report['expectedApplicationReleaseObserved']:
-              print('::warning::The expected public release is not verified. This observation workflow is not a production acceptance gate.')
-          PY
+          passed=0
+          for attempt in 1 2 3 4 5; do
+            if node scripts/production-smoke.mjs > /tmp/zonlio-public-observation/observation.json; then
+              passed=1
+              break
+            fi
+            if [ "$attempt" -lt 5 ]; then sleep 15; fi
+          done
+          cat /tmp/zonlio-public-observation/observation.json
+          if [ "$passed" -ne 1 ]; then
+            echo '::error::Expected public release or route checks not verified. Read the sanitized report; do not infer a full outage or full release approval.'
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: zonlio-public-observation
+          name: zonlio-public-observation-${{ github.run_id }}-${{ github.run_attempt }}
           path: /tmp/zonlio-public-observation/
           retention-days: 3
