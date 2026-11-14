@@ -1,0 +1,35 @@
+name: Consumer browser acceptance
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Install the isolated test browser
+        run: npx playwright install --with-deps ${{ matrix.engine }}
+      - name: Check synthetic consumers, accounts and administration
+        run: npm run test:browser -- ${{ matrix.engine }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zonlio-browser-${{ matrix.engine }}-${{ github.sha }}
+          path: .artifacts/browser/${{ matrix.engine }}/
+          retention-days: 3
