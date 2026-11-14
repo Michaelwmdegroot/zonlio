@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "approved_source": "Owner supplied Zonlio_Brand_Kit(1).zip, 14 November 2026",
+  "source_zip_sha256": "64bf633a7b819d3681e7721238f3dd89dadfe43bb25a89ad8cef885126a1198b",
+  "interface_reference_sha256": "8098d0b2ed7a0c15b1d298941f4a249fc38e7e17d702c44ae6e02e063b56780a",
+  "assets": {
+    "public/zonlio-logo.svg": {
+      "brand_kit_path": "logo/zonlio-logo.svg",
+      "sha256": "9caa059358dac2cdcd66137f8c88730afa672d85b2f91abcf6ef6f7eac63895b"
+    },
+    "public/icon.svg": {
+      "brand_kit_path": "icon/zonlio-icon.svg",
+      "sha256": "5fd73a0bf4b2b9b53fd10f72bfdd44fd94e5851e2a459b4498ba7ef220f11704"
+    }
+  }
+}

@@ -1,1 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="36" fill="#2268e8"/><path d="M29 83c13 0 13-35 26-35s13 42 26 42 13-26 22-26" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/><circle cx="93" cy="35" r="10" fill="#ffd166"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="262 143 464 464" role="img" aria-label="Zonlio icon">
+<title>Zonlio icon</title>
+<defs>
+ <linearGradient id="zonlioBlue" x1="0%" y1="0%" x2="92%" y2="100%">
+  <stop offset="0%" stop-color="#03BBF8"/>
+  <stop offset="44%" stop-color="#008EF6"/>
+  <stop offset="100%" stop-color="#0645F0"/>
+ </linearGradient>
+ <linearGradient id="zonlioSun" x1="12%" y1="8%" x2="84%" y2="100%">
+  <stop offset="0%" stop-color="#FFE46A"/>
+  <stop offset="55%" stop-color="#FFC62F"/>
+  <stop offset="100%" stop-color="#FFA900"/>
+ </linearGradient>
+</defs>
+<g id="zonlio-symbol"><rect x="262" y="143" width="464" height="464" rx="134" fill="url(#zonlioBlue)"/>
+       <path d="M617,336 L607,330 L598,331 L591,336 L544,431 L538,436 L532,436 L527,432 L492,353 L482,336 L469,325 L452,319 L438,319 L421,325 L403,342 L326,471 L328,485 L332,489 L342,492 L351,489 L355,485 L433,356 L444,351 L452,353 L459,360 L502,454 L516,466 L529,470 L540,470 L555,465 L571,449 L618,355 L620,343Z" fill="#FFFFFF" fill-rule="evenodd"/>
+       <path d="M602 200 V222 M653 220 L639 234 M666 272 H652 M653 322 L639 308 M550 322 L564 308 M537 272 H551 M550 220 L564 234" stroke="url(#zonlioSun)" stroke-width="13" stroke-linecap="round" fill="none"/>
+       <circle cx="602" cy="272" r="35" fill="url(#zonlioSun)"/>
+     </g>
+</svg>

@@ -134,7 +134,7 @@ export function renderPriceChart({ slots, selectedIndex = 0, mode = 'import', re
       const barHeight = Math.max(1, actualHeight);
       // A zero price is represented by a one-pixel mark on the baseline.
       const barTop = value === 0 ? Math.max(PLOT.top, scale.zeroY - 1) : Math.min(top, PLOT.bottom - barHeight);
-      parts.push(`<rect class="bar${index === selected ? ' is-selected' : ''}" data-slot="${index}" x="${coordinate(plot.left + index * bandWidth + inset)}" y="${coordinate(barTop)}" width="${coordinate(barWidth)}" height="${coordinate(barHeight)}" rx="${count > 48 ? 1 : 3}" fill="${fill}"/>`);
+      parts.push(`<rect class="bar${value < 0 ? ' is-negative' : ''}${index === selected ? ' is-selected' : ''}" data-slot="${index}" x="${coordinate(plot.left + index * bandWidth + inset)}" y="${coordinate(barTop)}" width="${coordinate(barWidth)}" height="${coordinate(barHeight)}" rx="${count > 48 ? 1 : 3}" fill="${fill}"/>`);
     }
 
     // Redraw the zero boundary over the marks, so negative-only and mixed plots stay explicit.
