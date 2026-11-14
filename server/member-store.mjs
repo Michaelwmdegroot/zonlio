@@ -10,6 +10,8 @@ const SCHEMA = [
  `CREATE TABLE IF NOT EXISTS zonlio_service_state (name VARCHAR(40) PRIMARY KEY, value_text TEXT NOT NULL, locked_until VARCHAR(27), claim_token VARCHAR(36))`,
  `CREATE TABLE IF NOT EXISTS zonlio_send_budget (id VARCHAR(36) PRIMARY KEY, kind VARCHAR(24) NOT NULL, reserved_at VARCHAR(27) NOT NULL)`,
  `CREATE TABLE IF NOT EXISTS zonlio_price_snapshots (day VARCHAR(10) PRIMARY KEY, payload_json TEXT NOT NULL, fetched_at VARCHAR(27) NOT NULL)`,
+ `CREATE TABLE IF NOT EXISTS zonlio_delivery_suppressions (email_key VARCHAR(64) PRIMARY KEY, reason VARCHAR(24) NOT NULL, created_at VARCHAR(27) NOT NULL)`,
+ `CREATE TABLE IF NOT EXISTS zonlio_member_erasure (member_id VARCHAR(36) PRIMARY KEY, email_key VARCHAR(64) NOT NULL, erased_at VARCHAR(27) NOT NULL)`,
 ];
 export class MemberConflict extends Error { constructor(message='Deze gegevens zijn gewijzigd. Vernieuw en probeer opnieuw.') { super(message); this.code='MEMBER_CONFLICT'; } }
 function member(row) { return row ? {id:row.id,email:row.email,profile:JSON.parse(row.profile_json),revision:Number(row.revision),deliveryBlocked:Boolean(row.delivery_blocked),createdAt:row.created_at} : null; }
@@ -23,12 +25,23 @@ export async function createMemberRepository({ adapter, now }) {
   async function evidence(db,id,purpose,state,version,text) {
     await db.run('INSERT INTO zonlio_consent_history (id,member_id,purpose,state,version,text_value,created_at) VALUES (?,?,?,?,?,?,?)',[randomUUID(),id,purpose,state,version,text,stamp()]);
   }
+  const emailKey = email => hash(String(email).trim().toLowerCase());
+  async function suppress(db,key,reason) {
+    if (!['hard_bounce','complaint','owner_request'].includes(reason)) throw new TypeError('Ongeldige reden voor de verzendstop.');
+    await db.get(`SELECT name FROM zonlio_service_state WHERE name='mail-budget'${lock}`);
+    const at=stamp();
+    await db.run(`${ignore} INTO zonlio_delivery_suppressions (email_key,reason,created_at) VALUES (?,?,?)`,[key,reason,at]);
+    await db.run('UPDATE zonlio_members SET delivery_blocked=1,updated_at=? WHERE email_key=?',[at,key]);
+    await db.run("UPDATE zonlio_member_mail SET status='cancelled',claim_token=NULL,locked_until=NULL,last_error='DELIVERY_BLOCKED' WHERE status IN ('pending','processing','failed') AND (member_id IN (SELECT id FROM zonlio_members WHERE email_key=?) OR challenge_id IN (SELECT id FROM zonlio_challenges WHERE email_key=?))",[key,key]);
+    await db.run('UPDATE zonlio_challenges SET consumed_at=? WHERE email_key=? AND consumed_at IS NULL',[at,key]);
+  }
   const repo = {
     async queueChallenge({purpose,email,payload,tokenFor}) {
       return adapter.work(async db=>{
         // Persistent per-address bounds also apply across processes. No email enumeration in responses.
         await db.get(`SELECT name FROM zonlio_service_state WHERE name='mail-budget'${lock}`);
-        const key = hash(email.toLowerCase()), at=stamp();
+        const key = emailKey(email), at=stamp();
+        if (await db.get('SELECT email_key FROM zonlio_delivery_suppressions WHERE email_key=?',[key])) return false;
         const attempts = await db.get('SELECT COUNT(*) AS total,MAX(created_at) AS latest FROM zonlio_challenges WHERE email_key=? AND created_at>?',[key,new Date(now()-86400000).toISOString()]);
         if (Number(attempts.total)>=5 || (attempts.latest && Date.parse(attempts.latest)>now()-120000)) return false;
         const id=randomUUID(), token=tokenFor(id,purpose), expires=new Date(now()+(purpose==='login'?15*60000:86400000)).toISOString();
@@ -42,7 +55,7 @@ export async function createMemberRepository({ adapter, now }) {
         // Serialize identity creation without relying on MySQL gap locks for a previously absent address.
         await db.get(`SELECT name FROM zonlio_service_state WHERE name='mail-budget'${lock}`);
         const c=await db.get(`SELECT * FROM zonlio_challenges WHERE token_hash=?${lock}`,[tokenHash]);
-        if (!c || c.consumed_at || c.expires_at<=stamp()) return null;
+        if (!c || c.consumed_at || c.expires_at<=stamp() || await db.get('SELECT email_key FROM zonlio_delivery_suppressions WHERE email_key=?',[c.email_key])) return null;
         const payload=JSON.parse(c.payload_json); const at=stamp();
         let row=await db.get(`SELECT * FROM zonlio_members WHERE email_key=?${lock}`,[c.email_key]);
         if (!row) {
@@ -55,6 +68,14 @@ export async function createMemberRepository({ adapter, now }) {
           const existing=await db.get('SELECT * FROM zonlio_subscriptions WHERE member_id=?',[row.id]);
           // An untrusted signup request never overwrites an existing active subscriber's preferences.
           if (!existing || existing.status!=='active') {
+            // The mailbox owner has now confirmed these planner choices. Keep any
+            // saved contract/scenario, which the public signup form does not edit.
+            const currentProfile=JSON.parse(row.profile_json);
+            const nextProfile={...currentProfile,devices:payload.profile.devices,startHour:payload.profile.startHour,endHour:payload.profile.endHour};
+            if (JSON.stringify(currentProfile)!==JSON.stringify(nextProfile)) {
+              await db.run('UPDATE zonlio_members SET profile_json=?,revision=revision+1,updated_at=? WHERE id=?',[JSON.stringify(nextProfile),at,row.id]);
+              row=await db.get('SELECT * FROM zonlio_members WHERE id=?',[row.id]);
+            }
             if (!existing) await db.run('INSERT INTO zonlio_subscriptions (member_id,edition,status,revision,consent_version,consent_text,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',[row.id,payload.edition,'active',0,daymailVersion,daymailText,at,at]);
             else await db.run("UPDATE zonlio_subscriptions SET edition=?,status='active',revision=revision+1,consent_version=?,consent_text=?,updated_at=? WHERE member_id=?",[payload.edition,daymailVersion,daymailText,at,row.id]);
             await evidence(db,row.id,'dayplan','active',daymailVersion,daymailText);
@@ -83,8 +104,10 @@ export async function createMemberRepository({ adapter, now }) {
     },
     async setSubscription(id,choice,revision,version,text) {
       return adapter.work(async db=>{
-        const m=await db.get(`SELECT id,email_key FROM zonlio_members WHERE id=?${lock}`,[id]);
+        await db.get(`SELECT name FROM zonlio_service_state WHERE name='mail-budget'${lock}`);
+        const m=await db.get(`SELECT id,email_key,delivery_blocked FROM zonlio_members WHERE id=?${lock}`,[id]);
         if (!m) throw new MemberConflict();
+        if (choice.status==='active'&&m.delivery_blocked) throw new TypeError('Voor dit adres geldt een verzendstop.');
         const existing=await db.get('SELECT * FROM zonlio_subscriptions WHERE member_id=?',[id]);
         if ((existing?Number(existing.revision):-1)!==revision) throw new MemberConflict();
         const at=stamp();
@@ -101,22 +124,27 @@ export async function createMemberRepository({ adapter, now }) {
     async unsubscribe(id,version,text) {
       // No optimistic version required for the narrow, signed stop-only operation.
       return adapter.work(async db=>{
+        await db.get(`SELECT name FROM zonlio_service_state WHERE name='mail-budget'${lock}`);
         const m=await db.get(`SELECT id,email_key FROM zonlio_members WHERE id=?${lock}`,[id]);
         if (!m) return;
         const sub = await db.get('SELECT status FROM zonlio_subscriptions WHERE member_id=?',[id]);
-        if (!sub || sub.status==='unsubscribed') return;
-        await db.run("UPDATE zonlio_subscriptions SET status='unsubscribed',revision=revision+1,updated_at=? WHERE member_id=?",[stamp(),id]);
+        // A repeated stop also cancels an opt-in requested since the previous stop.
+        // It must remain effective even if the subscription is already stopped.
         await db.run("UPDATE zonlio_challenges SET consumed_at=? WHERE email_key=? AND purpose='subscribe' AND consumed_at IS NULL",[stamp(),m.email_key]);
         await db.run("UPDATE zonlio_member_mail SET status='cancelled',claim_token=NULL,locked_until=NULL WHERE member_id=? AND kind='daily' AND status IN ('pending','processing','failed')",[id]);
+        if (!sub || sub.status==='unsubscribed') return;
+        await db.run("UPDATE zonlio_subscriptions SET status='unsubscribed',revision=revision+1,updated_at=? WHERE member_id=?",[stamp(),id]);
         await evidence(db,id,'dayplan','unsubscribed',version,text);
       },true);
     },
-    async blockDelivery(id) {
+    async blockDelivery(id,reason='hard_bounce') {
       await adapter.work(async db=>{
-        await db.run('UPDATE zonlio_members SET delivery_blocked=1,updated_at=? WHERE id=?',[stamp(),id]);
-        await db.run("UPDATE zonlio_member_mail SET status='cancelled',claim_token=NULL,locked_until=NULL,last_error='DELIVERY_BLOCKED' WHERE member_id=? AND status IN ('pending','processing')",[id]);
+        const row=await db.get('SELECT email_key FROM zonlio_members WHERE id=?',[id]);
+        if(row)await suppress(db,row.email_key,reason);
       },true);
     },
+    async suppressEmail(email,reason) { await adapter.work(db=>suppress(db,emailKey(email),reason),true); },
+    async suppressionForEmail(email) { return adapter.work(async db=>{const row=await db.get('SELECT reason,created_at FROM zonlio_delivery_suppressions WHERE email_key=?',[emailKey(email)]);return row?{reason:row.reason,createdAt:row.created_at}:null;}); },
     async claimMail(limit=3) {
       return adapter.work(async db=>{
         const at=stamp();
@@ -131,11 +159,12 @@ export async function createMemberRepository({ adapter, now }) {
     },
     async mailContext(item) {
       return adapter.work(async db=>{
-        const current=await db.get("SELECT id FROM zonlio_member_mail WHERE id=? AND claim_token=? AND status='processing' AND expires_at>?",[item.id,item.claim_token,stamp()]);
+        const current=await db.get("SELECT id FROM zonlio_member_mail WHERE id=? AND claim_token=? AND status='processing' AND expires_at>? AND locked_until>?",[item.id,item.claim_token,stamp(),stamp()]);
         if (!current) return null;
         if (item.challenge_id) {
           const c=await db.get('SELECT * FROM zonlio_challenges WHERE id=? AND consumed_at IS NULL AND expires_at>?',[item.challenge_id,stamp()]);
-          return c?{challenge:c}:null;
+          if(!c||await db.get('SELECT email_key FROM zonlio_delivery_suppressions WHERE email_key=?',[c.email_key]))return null;
+          return {challenge:c};
         }
         return {member:member(await db.get('SELECT * FROM zonlio_members WHERE id=?',[item.member_id])),subscription:subscription(await db.get('SELECT * FROM zonlio_subscriptions WHERE member_id=?',[item.member_id]))};
       });
@@ -149,7 +178,7 @@ export async function createMemberRepository({ adapter, now }) {
       await adapter.work(db=>db.run("UPDATE zonlio_member_mail SET status='pending',attempts=attempts-1,next_attempt_at=?,claim_token=NULL,locked_until=NULL,last_error='SEND_BUDGET' WHERE id=? AND claim_token=? AND status='processing'",[new Date(now()+15*60000).toISOString(),item.id,item.claim_token]));
     },
     async reserveBudget(kind,limit) {
-      if (!Number.isInteger(limit) || limit<1 || limit>100000) return false;
+      if (!Number.isInteger(limit) || limit<1 || limit>100) return false;
       return adapter.work(async db=>{
         await db.get(`SELECT name FROM zonlio_service_state WHERE name='mail-budget'${lock}`);
         const since=new Date(now()-86400000).toISOString();
@@ -184,26 +213,40 @@ export async function createMemberRepository({ adapter, now }) {
     },
     async stats() {
       return adapter.work(async db=>{
-        const members=await db.get('SELECT COUNT(*) AS total FROM zonlio_members');
+        const members=await db.get('SELECT COUNT(*) AS total,SUM(delivery_blocked) AS blocked FROM zonlio_members');
+        const suppressions=await db.get('SELECT COUNT(*) AS total FROM zonlio_delivery_suppressions');
         const subscriptions=await db.all('SELECT status,COUNT(*) AS total FROM zonlio_subscriptions GROUP BY status');
         const mails=await db.all('SELECT status,COUNT(*) AS total FROM zonlio_member_mail GROUP BY status');
         const last=await db.get("SELECT value_text FROM zonlio_service_state WHERE name='maintenance'");
+        const scheduler=await db.get("SELECT value_text FROM zonlio_service_state WHERE name='scheduler'");
+        const queue=await db.get("SELECT MIN(created_at) AS oldest FROM zonlio_member_mail WHERE status IN ('pending','processing')");
+        const sent=await db.get("SELECT MAX(sent_at) AS latest FROM zonlio_member_mail WHERE status='accepted'");
         const budget=await db.get('SELECT COUNT(*) AS total FROM zonlio_send_budget WHERE reserved_at>?',[new Date(now()-86400000).toISOString()]);
-        return {verifiedEmails:Number(members.total),subscriptions:Object.fromEntries(subscriptions.map(r=>[r.status,Number(r.total)])),mail:Object.fromEntries(mails.map(r=>[r.status,Number(r.total)])),reservedAttempts24h:Number(budget.total),maintenance:last?.value_text?JSON.parse(last.value_text):null,definition:'Geverifieerde e-mailadressen en expliciete abonnementen; geen belbare leads. Accepted betekent SMTP-acceptatie, niet bewezen aflevering.'};
+        return {verifiedEmails:Number(members.total),deliveryBlocked:Number(members.blocked||0),suppressedAddresses:Number(suppressions.total),subscriptions:Object.fromEntries(subscriptions.map(r=>[r.status,Number(r.total)])),mail:Object.fromEntries(mails.map(r=>[r.status,Number(r.total)])),oldestPendingAt:queue.oldest||null,latestAcceptedAt:sent.latest||null,reservedAttempts24h:Number(budget.total),maintenance:last?.value_text?JSON.parse(last.value_text):null,scheduler:scheduler?.value_text?JSON.parse(scheduler.value_text):null,definition:'Geverifieerde e-mailadressen en expliciete abonnementen; geen belbare leads. Accepted betekent SMTP-acceptatie, niet bewezen aflevering.'};
       });
     },
     async exportMember(id) {
-      return adapter.work(async db=>({member:member(await db.get('SELECT * FROM zonlio_members WHERE id=?',[id])),subscription:subscription(await db.get('SELECT * FROM zonlio_subscriptions WHERE member_id=?',[id])),choices:await db.all('SELECT purpose,state,version,text_value,created_at FROM zonlio_consent_history WHERE member_id=? ORDER BY created_at',[id])}));
+      return adapter.work(async db=>{
+        const row=await db.get('SELECT * FROM zonlio_members WHERE id=?',[id]);
+        const stop=row?await db.get('SELECT reason,created_at FROM zonlio_delivery_suppressions WHERE email_key=?',[row.email_key]):null;
+        return {member:member(row),subscription:subscription(await db.get('SELECT * FROM zonlio_subscriptions WHERE member_id=?',[id])),choices:await db.all('SELECT purpose,state,version,text_value,created_at FROM zonlio_consent_history WHERE member_id=? ORDER BY created_at',[id]),deliveryStop:stop?{reason:stop.reason,createdAt:stop.created_at}:null};
+      });
     },
     async deleteMember(id) {
       await adapter.work(async db=>{
+        await db.get(`SELECT name FROM zonlio_service_state WHERE name='mail-budget'${lock}`);
         const m=await db.get(`SELECT * FROM zonlio_members WHERE id=?${lock}`,[id]);if(!m)return;
+        // Recovery stop for older backups. A later explicitly confirmed account
+        // receives another id and is not silently confused with this erased one.
+        await db.run(`${ignore} INTO zonlio_member_erasure (member_id,email_key,erased_at) VALUES (?,?,?)`,[m.id,m.email_key,stamp()]);
         await db.run('DELETE FROM zonlio_member_sessions WHERE member_id=?',[id]);
         await db.run('DELETE FROM zonlio_subscriptions WHERE member_id=?',[id]);
         await db.run('DELETE FROM zonlio_consent_history WHERE member_id=?',[id]);
         await db.run('DELETE FROM zonlio_member_mail WHERE member_id=? OR challenge_id IN (SELECT id FROM zonlio_challenges WHERE email_key=?)',[id,m.email_key]);
         await db.run('DELETE FROM zonlio_challenges WHERE email_key=?',[m.email_key]);
         await db.run('DELETE FROM zonlio_members WHERE id=?',[id]);
+        // A minimal hashed delivery stop is intentionally retained: deleting an
+        // account must not silently re-enable an address stopped after a complaint.
       },true);
     },
     async cleanup() {

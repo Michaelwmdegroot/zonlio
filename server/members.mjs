@@ -35,7 +35,7 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
   const sessionLength=7*86400000;
   let publicOrigin='https://zonlio.nl',originValid=true;
   try { const u=new URL(env.PUBLIC_URL||env.APP_URL||publicOrigin);if(u.username||u.password||(production&&u.protocol!=='https:')||!['http:','https:'].includes(u.protocol))throw new Error();publicOrigin=u.origin; }catch{originValid=false;}
-  const limit=Number(env.SMTP_DAILY_LIMIT||0),limitValid=Number.isInteger(limit)&&limit>0&&limit<=100000;
+  const limit=Number(env.SMTP_DAILY_LIMIT||0),limitValid=Number.isInteger(limit)&&limit>0&&limit<=100;
   const operator=operatorConfiguration(env);
   const ready=Boolean(repository&&auth.secretConfigured&&mail.configured&&operator.confirmed&&originValid&&limitValid&&(!production||auth.configured));
   const accountsEnabled=ready&&env.MEMBER_ACCOUNTS_ENABLED==='true';
@@ -106,13 +106,14 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
     if(!allowKeys(req.body,['choice','expectedRevision','consent','policyVersion'])||!Number.isSafeInteger(req.body.expectedRevision)||req.body.expectedRevision< -1)return res.status(422).json({error:'Ongeldige abonnementsversie.'});
     const choice=cleanSubscription(req.body.choice);
     if(choice.status==='active'&&(!subscriptionsEnabled||req.body.consent!==true||req.body.policyVersion!==DAYMAIL_POLICY_VERSION))return res.status(422).json({error:'Bevestig de beschikbare dagplanservice.'});
+    if(choice.status==='active'&&req.memberSession.member.deliveryBlocked)return res.status(422).json({error:'Voor dit adres geldt een verzendstop. Neem contact op met info@zonlio.nl als je hulp nodig hebt.'});
     if(choice.status==='active'&&!req.memberSession.member.profile.devices.length)return res.status(422).json({error:'Sla eerst minstens één apparaat op in je profiel.'});
     const result=await repository.setSubscription(req.memberSession.member.id,choice,req.body.expectedRevision,DAYMAIL_POLICY_VERSION,DAYMAIL_TEXT);res.json({ok:true,subscription:result});
   });
   router.get('/export',memberRequired,async(req,res)=>res.setHeader('Content-Disposition','attachment; filename="mijn-zonlio.json"').json(await repository.exportMember(req.memberSession.member.id)));
   router.delete('/profile',origin,memberRequired,csrf,async(req,res)=>{
     if(req.body?.confirm!=='DELETE_MY_ZONLIO')return res.status(422).json({error:'Bevestig het verwijderen van je Mijn Zonlio-profiel.'});
-    await repository.deleteMember(req.memberSession.member.id);res.setHeader('Set-Cookie',cookie('',0)).json({ok:true,message:'Profiel, abonnementen en sessies zijn verwijderd. Een afzonderlijke woningadviesaanvraag wordt hiermee niet verwijderd; neem daarvoor contact op met info@zonlio.nl.'});
+    await repository.deleteMember(req.memberSession.member.id);res.setHeader('Set-Cookie',cookie('',0)).json({ok:true,message:'Profiel, abonnementen en sessies zijn verwijderd. Een beperkt bewijs van je verwijderkeuze en een eventuele verzendstop blijven bewaard, zodat je keuze ook bij herstel wordt gerespecteerd. Een afzonderlijke woningadviesaanvraag wordt hiermee niet verwijderd; neem daarvoor contact op met info@zonlio.nl.'});
   });
   router.post('/unsubscribe',origin,async(req,res)=>{
     const id=validToken(req.body?.token,'unsubscribe');if(!id||!repository)return res.status(400).json({error:'Ongeldige afmeldlink.'});
@@ -136,7 +137,9 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
     if(context.challenge) {
       const c=context.challenge;to=c.email;const link=`${publicOrigin}/mijn#bevestig=${tokenFor(c.id,c.purpose)}`;
       title=c.purpose==='login'?'Open jouw Mijn Zonlio':'Bevestig jouw Zonlio-dagplan';
-      const explanation=c.purpose==='login'?'Deze eenmalige inloglink is 15 minuten geldig. Open de link en bevestig de actie.':'Bevestig met de knop op de website dat je het gekozen dagplan wilt ontvangen. De link is 24 uur geldig. Dit is geen toestemming voor verkooptelefoontjes of aanbiedingen.';
+      const requested=c.purpose==='subscribe'?JSON.parse(c.payload_json):null;
+      const preferences=requested?` Je koos de ${requested.edition==='morning'?'ochtend':'avond'}editie, ${requested.profile.devices.map(id=>({washing:'wasmachine',dishwasher:'vaatwasser',car:'elektrische auto'})[id]).join(', ')} en het venster ${requested.profile.startHour}:00–${requested.profile.endHour}:00. Bij een bestaand inactief abonnement worden deze apparaatkeuzes bijgewerkt; je bewaarde contracttarieven blijven behouden. Een actief abonnement verandert niet door deze inschrijving.`:'';
+      const explanation=c.purpose==='login'?'Deze eenmalige inloglink is 15 minuten geldig. Open de link en bevestig de actie.':`Bevestig met de knop op de website dat je het gekozen dagplan wilt ontvangen. De link is 24 uur geldig. Dit is geen toestemming voor verkooptelefoontjes of aanbiedingen.${preferences}`;
       text=`${title}\n\n${explanation}\n\n${link}\n\nNiet zelf aangevraagd? Negeer deze mail. Er verandert niets zonder bevestiging.\n\nZonlio — ${OPERATOR.name}\n${OPERATOR.street}, ${OPERATOR.postcode} ${OPERATOR.city}\nKvK ${OPERATOR.kvk} · ${OPERATOR.email}`;
       html=emailFrame(title,`<p>${esc(explanation)}</p><p><a style="display:inline-block;background:#0765F1;color:white;padding:14px 20px;border-radius:12px;text-decoration:none" href="${esc(link)}">${c.purpose==='login'?'Open Mijn Zonlio':'Bevestig mijn dagplan'}</a></p><p>Niet zelf aangevraagd? Negeer deze mail.</p>`);
     } else {
@@ -150,9 +153,11 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
     return {from:{name:'Zonlio',address:env.SMTP_USER||OPERATOR.email},replyTo:OPERATOR.email,to,subject:title,text,html,headers,messageId:`<zonlio.member.${item.id}@zonlio.nl>`,disableFileAccess:true,disableUrlAccess:true};
   }
   async function processMail({limit:batchLimit=3}={}) {
+    if(mail.paused)return {enabled:false,reason:'paused',accepted:0};
     if(!ready||(!accountsEnabled&&!subscriptionsEnabled&&!dailySendEnabled))return {enabled:false,accepted:0};
     const result={enabled:true,accepted:0,cancelled:0,failed:0,deferred:0};
     for(const item of await repository.claimMail(batchLimit)) {
+      let targetEmail;
       try {
         let context=await repository.mailContext(item);
         if(!context||(item.kind==='login'&&!accountsEnabled)||(item.kind==='subscribe'&&!subscriptionsEnabled)||(item.kind==='daily'&&!dailySendEnabled)) {await repository.finishMail(item,'cancelled','SERVICE_PAUSED');result.cancelled++;continue;}
@@ -163,35 +168,39 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
         if(!await repository.reserveBudget(item.kind,limit)) {await repository.deferMail(item);result.deferred++;continue;}
         context=await repository.mailContext(item); // Check withdrawal and expiry immediately before handing to SMTP.
         if(!context||(item.kind==='daily'&&(!context.member||context.member.deliveryBlocked||context.subscription?.status!=='active'||context.member.revision!==JSON.parse(item.payload_json).profileRevision||context.subscription.revision!==JSON.parse(item.payload_json).subscriptionRevision))) {await repository.finishMail(item,'cancelled','CONSENT_CHANGED');result.cancelled++;continue;}
+        targetEmail=context.challenge?.email||context.member?.email;
         const sent=await mail.sendService(messageFor(item,context));
         if(sent?.rejected?.length||!sent?.accepted?.length)throw Object.assign(new Error('SMTP_NOT_ACCEPTED'),{code:'EENVELOPE'});
         await repository.finishMail(item,'accepted');result.accepted++;
       } catch(error) {
         const code=['EAUTH','ECONNECTION','ETIMEDOUT','ESOCKET','EDNS','EENVELOPE','EMESSAGE'].includes(error?.code)?error.code:'SMTP_ERROR';
         // A confirmed non-existent mailbox, not an arbitrary 5.7.x policy rejection.
-        if(item.member_id&&/\b5\.1\.[01]\b/.test(String(error?.response||'')))await repository.blockDelivery(item.member_id);
+        if(targetEmail&&/\b5\.1\.[01]\b/.test(String(error?.response||'')))await repository.suppressEmail(targetEmail,'hard_bounce');
         await repository.finishMail(item,'retry',code);result.failed++;
       }
     }
     return result;
   }
   async function scheduleDaily() {
+    if(mail.paused)return {enabled:false,queued:0,status:'paused'};
     if(!dailySendEnabled||!market)return {enabled:false,queued:0};
     const due=dueEdition(now());if(!due)return {enabled:true,queued:0,status:'outside_window'};
     const lease=await repository.acquireTask('scheduler');if(!lease)return {enabled:true,queued:0,status:'busy'};
-    let result={enabled:true,queued:0,date:due.date};
+    let result={enabled:true,queued:0,date:due.date,status:'running'};
     try {
       const subscribers=await repository.dueSubscribers(due.edition,due.date);
-      if(!subscribers.length)return {...result,status:'nothing_due'};
+      if(!subscribers.length){result.status='nothing_due';return result;}
       let data=await repository.priceSnapshot(due.date);
       if(!data) {data=await market.getDay(due.date);if(data.status==='available'&&!data.stale)await repository.savePriceSnapshot(due.date,data);}
-      if(data.status!=='available'||data.stale||data.date!==due.date)return {...result,status:'source_unavailable'};
+      if(data.status!=='available'||data.stale||data.date!==due.date){result.status='source_unavailable';return result;}
       for(const row of subscribers) {
         const plan=makeDayPlan(data,JSON.parse(row.profile_json),now());
-        if(plan.status==='unavailable')continue;
+        if(plan.status==='unavailable'){result.status='source_unavailable';return result;}
         const saved=await repository.queuePlan(row,due.date,plan);result.queued+=saved.changes?1:0;
       }
+      result.status='complete';
       return result;
+    } catch(error) {result.status='failed';throw error;
     } finally {await repository.finishTask('scheduler',lease,result);}
   }
   async function maintenance() {

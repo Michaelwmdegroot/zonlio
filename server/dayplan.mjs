@@ -13,11 +13,16 @@ export function dueEdition(now) {
 export function makeDayPlan(raw, input, now = Date.now()) {
   const profile = cleanEnergyProfile(input);
   if (!profile.devices.length) return {status:'no_devices'};
-  const prices = normalizePrices(raw);
+  let prices;
+  try {prices=normalizePrices(raw);}catch{return {status:'unavailable'};}
   if (prices.status !== 'available' || prices.stale || !prices.contiguous) return {status:'unavailable'};
   // A full local delivery day is required, including Dutch DST days.
   const all = prices.intervals;
   const first = Date.parse(all[0].start), last = Date.parse(all.at(-1).start) + all.at(-1).durationMinutes*60000;
+  // The planning core needs a regular supported grid; reject malformed/mixed
+  // source data as unavailable instead of aborting the whole scheduler batch.
+  const duration=all[0].durationMinutes;
+  if(![15,60].includes(duration)||all.some(s=>s.durationMinutes!==duration)||first%60000!==0||last%60000!==0)return {status:'unavailable'};
   if (localDate(first) !== prices.date || localHour(first) !== 0 || localDate(last) !== addDays(prices.date,1) || localHour(last) !== 0 || all.some(s=>localDate(s.start)!==prices.date)) return {status:'unavailable'};
   const contract = profile.contract;
   let slots = contract.type === 'dynamic' && contract.resolution === 'hour' ? hourlySlots(all) : all;
