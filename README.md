@@ -4,11 +4,11 @@
 
 Eigenaar van de repository: [Michaelwmdegroot](https://github.com/Michaelwmdegroot). Beoogd domein: **https://zonlio.nl**. Contact: **info@zonlio.nl**.
 
-## Status van deze release
+## Pilotstatus (14 november 2026)
 
-De applicatie en de productieroutes zijn geïmplementeerd. De broncode gebruikt de eigen GitHub-repository en is ingericht voor een Node.js-app op Hostinger, met `main` als beoogde deploymentbranch. Een broncodepush bewijst nog geen geslaagde Hostinger-deployment.
+**Technische pilot voltooid; commerciële adviesaanvragen nog HOLD.** De eigenaar heeft de productie-UI op `https://zonlio.nl` en de live health-uitvoer getoond. Hostinger draait de Node.js 24/Express-app met GitHub `main`, MySQL en beheerconfiguratie. De laatste door de eigenaar gedeelde health liet `databaseReady:true`, `adminConfigured:true`, `mailConfigured:true`, prijs- en weerbronnen `ready` en `leadEnabled:false` zien. Mailconfiguratie bewijst geen SMTP-acceptatie of inboxbezorging. De cron-taak en één echte end-to-end aanvraag zijn nog niet als geslaagd vastgelegd. Visuele screenshots van de eerdere lokale QA staan hieronder; productie is door de eigenaar via eigen browser bevestigd.
 
-Op 14 november 2026 waren het hostingaccount, de productiedatabase en de authenticatie van `info@zonlio.nl` niet bereikbaar via de beschikbare koppelingen. Het domein, de productie-instellingen, een echte SMTP-aflevering en de periodieke onderhoudstaak zijn daarom nog niet als operationeel bevestigd. De GitHub-controles inclusief echte MySQL 8-integratie zijn geslaagd; de publieke interface en een testaanvraag zijn ook in de browser gecontroleerd. Zie [release](docs/RELEASE.md), [uitrol](docs/DEPLOYMENT.md) en [verificatie](docs/QA.md) voor de exacte stand.
+**Lees eerst de actuele [pilotoverdracht](docs/PILOT-HANDOFF-2026-11-14.md) en [startprompt voor de volgende agent](docs/NEXT-AGENT-STARTPROMPT.md).** Historische [QA](docs/QA.md) en [release](docs/RELEASE.md) documentatie is aangevuld om deze stand te onderscheiden van de aanvankelijke bouwfase.
 
 ## Wat de applicatie doet
 

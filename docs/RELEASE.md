@@ -1,36 +1,36 @@
-# Zonlio 1.0 — release en vervolg
+# Zonlio 1.0 — actuele release en vervolg
 
-Datum: 14 november 2026. Dit document maakt onderscheid tussen geïmplementeerde code en werkelijk aangesloten productievoorzieningen.
+**Status op 14 november 2026: technische pilot afgerond; commerciële adviesroute HOLD.** Bron van waarheid: [pilotoverdracht](PILOT-HANDOFF-2026-11-14.md). Dit document vervangt de vroegere status 'nog geen Hostinger-deployment'.
 
-## Geïmplementeerd
+## Operationeel volgens eigenaar en GitHub
 
-- Gepubliceerde Nederlandse kwartierprijzen en eerlijke bron-, fout- en actualiteitsstatussen.
-- Interactieve uur-/kwartiergrafiek, bevestigde contractinvoer en toekomstige verbruiksplanner.
-- Regionaal weer, zonder afgeleide fictieve zonneproductie.
-- 2027- en batterijscenario's met controleerbare aannames en rapport.
-- Aanvragen per e-mail of telefoon, optionele scenario-overdracht en vastgelegd contactverzoek.
-- Transactionele databaseopslag, idempotentie en afzonderlijke e-mailwachtrij.
-- Afgeschermd beheer met aanvragen, opvolging, notities, statistieken en bron-/mailstatus.
-- Hostinger-gerichte Node.js-configuratie, MySQL-adapter, onderhoudsscript en GitHub Actions.
+- Eigenaar bevestigde een geslaagde **Hostinger Cloud Professional / Node.js 24 / Express**-deployment van GitHub `main` naar `https://zonlio.nl`.
+- Productiescreenshot toont de dashboardweergave met gepubliceerde stroomprijzen, grafiek en planner.
+- Laatste door eigenaar gedeelde `/api/health`: `ok:true`, `databaseReady:true`, `adminConfigured:true`, `mailConfigured:true`, `leadEnabled:false`, prijs en weer `ready`.
+- Database is MySQL; gebruiker herstelde toegangsrechten na `ER_DBACCESS_DENIED_ERROR`.
+- Beheer is geconfigureerd; gebruiker heeft de beheeromgeving getest (geen volledige onafhankelijke beheer- of e-mail-E2E-audit).
+- Laatste applicatiecommit vóór overdracht: `328de76891172a5c6f45f07cf47e0c6d6812bbec`, CI [groen](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43547783408).
 
-De feitelijk uitgevoerde controles staan in [QA.md](QA.md). Gebruik dit document niet als verklaring dat het domein al deze code serveert.
+## In code geïmplementeerd
 
-## Nog te verbinden voor publieke ingebruikname
+- Nederlandse kwartierprijzen via Energy-Charts/SMARD met contractgebonden consumentenberekeningen, met bron- en foutstatus.
+- Apparaatplanner met door gebruiker gekozen tijdvensters.
+- Regionale MET Norway-weercontext.
+- 2027- en batterijscenario's, met expliciete beperkingen en aannames.
+- Adviesroute per e-mail/telefoon, vrijwillige scenario-overdracht, veilige dubbele inzendingen.
+- MySQL-persistentie, outbox, SMTP-koppeling en afgeschermd beheer voor aanvragen, notities, status, statistieken en mailwachtrij.
 
-1. Een bereikbare hostingkoppeling met het juiste Hostinger-account, Node.js-app en domein.
-2. De eigen repository op branch `main`, passende Node-runtime en HTTPS.
-3. Een productiedatabase, beheerder en servergeheimen via beveiligde configuratie.
-4. Authenticatie van `info@zonlio.nl`, SMTP-controle en een gecontroleerde afleveringsproef.
-5. Periodieke verwerking van de mailwachtrij en monitoring van mislukte taken.
-6. Bevestigde exploitant/privacygegevens en een operationele procedure voor bewaartermijnen, intrekking en verwijdering.
-7. Visuele en functionele controle op de echte deployment, inclusief mobiel, foutstatussen en een gecontroleerde testaanvraag.
+## Niet afgerond: gates voor leads en definitieve publieke campagne
 
-De beschikbare Hostinger-koppeling kon in deze bouwomgeving niet worden aangeroepen. Hostinger blokkeert bovendien inloggen vanuit de cloudbrowser. Er is daarom geen geslaagde hPanel-handeling, domeinwijziging, mailboxconfiguratie of Hostinger-deployment gerapporteerd.
+1. Juridische exploitant en ontvanger over de site, `LEAD_CONTROLLER_NAME`, privacy en contacttekst bevestigen. Huidige webpagina's noemen Thuisbatterij Team B.V.; eerder stond NIVO Groep Holland als mogelijke configuratie.
+2. SMTP-authenticatie en echte e-mailbezorging controleren; `mailConfigured:true` is **geen** bezorgbewijs.
+3. Periodieke beveiligde verwerking van `npm run maintenance` inrichten en controleren.
+4. Login, sessie, statuswijzigingen, mailqueue, opslag na herstart, één gecontroleerde testaanvraag (geen willekeurige klanten) en herstel uit DB-back-up testen.
+5. Bewaartermijnen, intrekking, inzage en verwijdering operationeel vastleggen; bestaande code verwijdert geen leads automatisch.
+6. Pas dan met toestemming `LEAD_CONTROLLER_CONFIRMED=true` en de contactroute end-to-end activeren.
 
-## Vervolg met de meeste productwaarde
+De technische basis is klaar om verder te bouwen. De eigenaar heeft aangegeven dat **visuele verbeteringen, verdere kwaliteitscontrole, SEO, productfuncties en AI** in de volgende ChatGPT-sessie worden opgepakt. Zie [NEXT-AGENT-STARTPROMPT.md](NEXT-AGENT-STARTPROMPT.md).
 
-**Na de eerste betrouwbare ingebruikname:** volg de kwaliteit van aanvragen, gekozen onderwerpen, contactkanaal en daadwerkelijke opvolging. Baseer wijzigingen aan de adviesroute op ontvangen aanvragen en opt-in metingen.
+## Belangrijke beperking
 
-**Persoonlijker rekenen:** import van eigen intervalmeetdata en een gevalideerde PV-verwachting met dakgegevens en een passende stralingsbron. Bouw vervolgens een batterijmodel dat tijdsvolgorde, vermogen, capaciteit, verliezen en contractregels verwerkt.
-
-**AI-uitleg:** laat een taalmodel brondata en rekenuitkomsten in gewone taal uitleggen, met vastgelegde bron- en actualiteitsinformatie. Prijsvoorspellingen vragen een afzonderlijk model, onzekerheidsbanden en toetsing op nog niet geziene perioden. De huidige app presenteert deze toekomstige functies niet als al beschikbaar.
+De hierboven beschreven productiewerking komt uit de screenshots en health-uitvoer van de eigenaar. Rechtstreekse DNS-/HTTPS-verificatie vanuit de huidige assistentomgeving was niet mogelijk. Nooit een onafhankelijke check claimen zonder een daadwerkelijke test. Voor de oorspronkelijke QA en tests zie [QA.md](QA.md).

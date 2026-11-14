@@ -55,3 +55,12 @@ De screenshots tonen de werkelijke lokale interface met de opgehaalde prijsdag v
 De werkelijke Hostinger-runtime, productiedatabase, DNS/HTTPS, mailboxauthenticatie, inboxontvangst en geplande onderhoudstaak zijn nog niet bevestigd. Dit zijn afzonderlijke uitrolcontroles, geen bewijs uit de tests met testgegevens.
 
 De volledige gebruikersroute, ingelogde backoffice en echte aflevering moeten na de Hostinger-koppeling nogmaals op het uiteindelijke HTTPS-domein worden bevestigd.
+
+
+---
+
+## Productie-update: technische pilot op 14 november 2026
+
+De eerdere secties beschrijven de lokale QA vóór de livegang en zijn historisch. De eigenaar bevestigde vervolgens met screenshots dat `zonlio.nl` als Hostinger Node Web App met **Node 24/Express** de echte overzichtspagina en de prijs/weerdata toont. De aanvankelijke 503 door te late `listen()`-aanroep en de MySQL-fout `ER_DBACCESS_DENIED_ERROR` zijn tijdens de pilot verholpen. De laatste gedeelde health gaf `databaseReady:true`, `adminConfigured:true`, `mailConfigured:true`, `leadEnabled:false`.
+
+Applicatiecommit `328de76891172a5c6f45f07cf47e0c6d6812bbec` slaagde op [GitHub Actions run 43547783408](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43547783408), inclusief MySQL 8. De eigenaar zegt de beheeromgeving te hebben getest; een volledige ingelogde beheersessie, SMTP-acceptatie, echte inboxlevering, cron, DB-restore en gecontroleerde productieaanvraag zijn nog **niet onafhankelijk of end-to-end bevestigd**. De nieuwe documentatie in `docs/PILOT-HANDOFF-2026-11-14.md` is leidend. Rechtstreekse livecontrole vanuit deze ChatGPT-omgeving faalde door DNS, niet door een bewezen productiestoring.

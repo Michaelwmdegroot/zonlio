@@ -1,6 +1,8 @@
 # Hostinger livegang — Zonlio (GitHub `main`)
 
-Laatst gecontroleerd: 14 november 2026. Deze instructie is voorbereid op de officieel beschreven **Node.js Web App**-route van Hostinger. Er is **nog geen Hostinger-productiedeployment** bevestigd.
+Laatst bijgewerkt: 14 november 2026. > **Statusupdate 14 november 2026:** De oorspronkelijke stappen hieronder documenteren de installatieprocedure. **De bestaande Node.js-app is inmiddels door de eigenaar succesvol via GitHub `main` op `zonlio.nl` gepubliceerd**, met Cloud Professional / Node 24 / Express. De prijs- en weerdata werken; health toont MySQL en beheer gereed. Er hoeft **geen nieuwe website** te worden aangemaakt. Lees eerst [de pilotoverdracht](PILOT-HANDOFF-2026-11-14.md) vóór nieuwe wijzigingen. Lead-intake blijft uit totdat end-to-end geverifieerd.
+
+De onderstaande stappen zijn **historische installatie-instructies** voor een eerste Hostinger Web App en niet opnieuw uitvoeren voor de bestaande live Zonlio-site.
 
 ## 1. Kies de juiste Hostinger-integratie
 
