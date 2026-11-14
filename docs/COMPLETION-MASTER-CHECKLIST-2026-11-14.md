@@ -4,11 +4,26 @@
 
 ## Leeswijzer en bron van waarheid
 
-Deze checklist is de **actuele, normatieve vervolgoverdracht**. De oudere pilot- en testrelease-documenten zijn historisch bewijs. Controleer bij hervatten altijd opnieuw GitHub `main`, live `/api/health` en `/api/config`, de huidige issues en de effectieve flags. Er zijn nog geen nieuwe productieflags aangezet door deze documentatieronde.
+Deze checklist is de **actuele, normatieve vervolgoverdracht**. De oudere pilot- en testrelease-documenten zijn historisch bewijs. Controleer bij hervatten altijd opnieuw GitHub `main`, live `/api/health` en `/api/config`, de huidige issues en de effectieve flags. Er zijn geen nieuwe productieflags aangezet door de afrondingsronde.
 
 **Definitie van bedrijfsklaar:** bezoekers krijgen een eerlijke gratis tool, kunnen vrijwillig een persoonlijk account/dagplan gebruiken of een NIVO-woningadvies aanvragen; relevante data, bevestigingen en opvolgtaken worden veilig opgeslagen en verwerkt zonder handmatige technische tussenkomst of draaiende Mac; NIVO kan aanvragen zelfstandig opvolgen via Zonlio; fouten, quota, intrekkingen en herstel zijn beheersbaar. Een menselijke salesopvolging door Pim blijft nodig. De toekomstige Portal-ontvanger is **geen** blokkerende afhankelijkheid.
 
 De masterstatus is altijd **bewijsafhankelijk**: niet `[x]` zetten op grond van alleen bouw/CI/health als een live E2E- of restoreproef nodig is. Verdeel bewijs expliciet in repository, CI, lokale simulatie, productieobservatie en eigenaargetuigenis.
+
+## Afrondingsronde 04 — toegevoegd bewijs en uitvoering
+
+De technische voortgang en exacte nieuwe CI-/deploymentverwijzingen staan in [AUTONOMY-04-RELEASE-2026-11-14.md](AUTONOMY-04-RELEASE-2026-11-14.md). De onderstaande P0-/productiecheckboxes blijven open waar echte inbox-, cron-, rechten- of restoreacceptatie ontbreekt. Implementatie is geen publieke vrijgave.
+
+| Checklist | Nu gebouwd en lokaal synthetisch getoetst | Nog externe acceptatie |
+| --- | --- | --- |
+| P0-01 | Beveiligde export/correctie/wissing, revisie/tombstones, herstelregister, read-only restorechecker, extra MySQL-testgevallen | Productiebeheer, eigen dossier, persistentie en afzonderlijke Hostinger-restore |
+| P0-02 / P1-01 | Duurzame suppressies, globale pauze, 100/24h-ceiling, leasecontrole, bevestigde profielkeuzes, afmelden annuleert pending opt-in | Echte account-/lead-/dagmailontvangst, headers, asynchrone bounceproces |
+| P1-02 | Woningplan vóór NAW, contextuele CTA’s en rapportage van echte historische salesmijlpalen | Werkgebied/diensten, terugbeltermijn, contactpogingen, vervanger en bevoegde medewerker |
+| P1-03 | Persistente cronruns/locks, bron-/queue-/quota-/opvolgalerts, onafhankelijk openbaar watchdogworkflow, exacte runbooks | hPanel-cron, herstartbewijs, werkelijk ontvangen storingsmelding |
+| P1-04 | Uur-/kwartiercontractcorrectie, zes statische SEO-landings, consent-correcte events, Chromium/WebKit-CI-script | Nieuwe CI/uitrol, fysieke Safari, Search Console/indexatie/CWV |
+| P1-05 | Contracttests inclusief late ack/replay/intrekking/verval/wissing; volledige Portal-onboarding | Echte Portal-aansluiting alleen later, geen blocker zelfstandige Zonlio |
+
+Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppeling levert geen hPanel-/DB-/crontoegang. [Cron-/incidentstappen](AUTONOMOUS-OPERATIONS.md), [privacy-/restorestappen](PRIVACY-OPERATIONS.md) en [NIVO-opvolgconcept](NIVO-FOLLOWUP.md) maken de nog noodzakelijke handelingen concreet. Geen nieuwe architectuur of herhaling van bevestigde bedrijfsgegevens nodig.
 
 ## 0. Feitelijk bereikt, niet opnieuw als open punt behandelen
 

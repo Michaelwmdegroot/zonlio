@@ -1,3 +1,5 @@
+> **Historische fase.** Gebruik voor de huidige flags, cron en acceptatie [release 04](AUTONOMY-04-RELEASE-2026-11-14.md), [DEPLOYMENT.md](DEPLOYMENT.md) en [het operationsrunbook](AUTONOMOUS-OPERATIONS.md). Bedrijfsbevestiging opent algemene intake niet: `LEAD_ENABLED` is apart.
+
 # Hostinger livegang — Zonlio (GitHub `main`)
 
 Laatst bijgewerkt: 14 november 2026. > **Statusupdate 14 november 2026:** De oorspronkelijke stappen hieronder documenteren de installatieprocedure. **De bestaande Node.js-app is inmiddels door de eigenaar succesvol via GitHub `main` op `zonlio.nl` gepubliceerd**, met Cloud Professional / Node 24 / Express. De prijs- en weerdata werken; health toont MySQL en beheer gereed. Er hoeft **geen nieuwe website** te worden aangemaakt. Lees eerst [de pilotoverdracht](PILOT-HANDOFF-2026-11-14.md) vóór nieuwe wijzigingen. Lead-intake blijft uit totdat end-to-end geverifieerd.

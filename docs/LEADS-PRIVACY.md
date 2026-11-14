@@ -1,67 +1,49 @@
 # Zonlio — adviesaanvragen, gegevens en verzending
 
-> **Actuele aanvulling (groei-iteratie 2):** de eigenaar bevestigde NIVO Groep Holland BV, KvK 95227768, Lireweg 52, 2153 PH Nieuw-Vennep als exploitant en ontvanger. `info@zonlio.nl` is het privacycontact. Nieuwe teksten komen uit de centrale operatorconfiguratie; afwijkende oude configuratie blokkeert intake. Historische dossierbewijzen worden niet omgeschreven. Zie `GROWTH-02-2026-11-14.md` voor accounts, aparte dagplanservice en privacy-operatie. De oudere beschrijving hieronder bewaart de pilotgeschiedenis en is geen actuele ontvangerkeuze.
+Actuele technische beschrijving bij `autonomy-ready-04-20261114`. **NIVO Groep Holland BV**, KvK 95227768, Lireweg 52, 2153 PH Nieuw-Vennep, is door de eigenaar bevestigd als exploitant en adviesontvanger. Privacycontact: **info@zonlio.nl**. Definitieve beleidsgoedkeuring staat los van deze implementatie.
 
+## Afzonderlijke keuzes
 
-Versie: 14 november 2026. Dit document beschrijft de implementatie en de gegevens die de exploitant vóór productie moet bevestigen.
+Gratis tools vragen geen account. Accounttoegang, de vrijwillige dagplandienst, een concrete adviesvraag en statistieken hebben elk hun eigen keuze. Er ontstaat geen verkoopdossier door een account of abonnement; er is geen algemene marketingopt-in.
 
-## Exploitant en aanvraag
+Algemene adviesvragen gebruiken een gekozen e-mail- of telefoonkanaal. Woningadvies vraagt de noodzakelijke woning-/contactgegevens voor de betreffende hulpvraag en heeft een aparte functieflag. Het rekenresultaat blijft vooraf zichtbaar. Alleen bewust gedeelde, gevalideerde scenariovelden gaan mee naar het dossier.
 
-De standaardcontroller is **Thuisbatterij Team B.V.**, met **info@zonlio.nl** als contactpunt voor Zonlio. De bedrijfsnaam is teruggevonden in het eigen privacybeleid van Thuisbatterij Team. Verschillende openbare contactpagina's tonen verschillende adres-/telefoongegevens; die zijn daarom niet als bevestigde Zonlio-gegevens overgenomen.
+Actuele contactteksten komen uit de serverconfiguratie, met versie, ontvanger, ontvangsttijd en het afgesproken contactvenster. Het venster van 30 dagen is bedrijfsbeleid, geen universele bewaartermijn. Intrekking, sluiting of verlopen contactrecht stopt nieuwe opvolging en nog wachtende mails; reeds bij SMTP afgegeven mail is niet terug te halen.
 
-Productie accepteert pas aanvragen als MySQL beschikbaar is, beheer met `ADMIN_PASSWORD_HASH` en `SESSION_SECRET` is geconfigureerd en `LEAD_CONTROLLER_CONFIRMED=true`. Bevestig de juridische exploitant, de gegevens in de privacyverklaring en de interne ontvanger. Er vindt geen automatische overdracht aan NIVO of andere partijen plaats.
+## Opslag, rechten en herstel
 
-Het formulier is een gericht verzoek om advies via e-mail of telefoon. De gebruiker ziet het bedrijf, kanaal, onderwerp en de contacttekst. Alleen het gekozen contactgegeven is verplicht. Het delen van het rekenscenario is optioneel. De aanvraag is geen nieuwsbriefinschrijving en bevat geen algemene marketingtoestemming.
+Aanvraag, contactbewijs en outboxtaken worden in één MySQL-transactie vastgelegd. Succes volgt pas na commit. Dezelfde aanvraagcode met dezelfde inhoud geeft dezelfde referentie; gewijzigde inhoud met die code wordt geweigerd. Na correctie of wissing mag een oude browserherhaling het dossier niet opnieuw vullen.
 
-De contacttekst wordt serverzijdig bewaard met versie `2026-11-14-v1`. Het formulier haalt de actuele tekst op via `/api/config`. De voorgestelde contacttermijn is 30 dagen; deze termijn is bedrijfsbeleid, geen wettelijke standaard. De backoffice toont `contactExpiresAt`. Opvolging buiten het aangevraagde doel of na intrekking is niet toegestaan door alleen het bestaan van een lead.
+Opgeslagen worden de noodzakelijke contact-/woninggegevens, optionele vraag/scenario, bronmodule, onderwerp, contactbewijs, acties/statushistorie en technische queue-/idempotentiegegevens. Vrije notities mogen alleen noodzakelijke informatie bevatten. De publiek toegankelijke analytics bevatten geen NAW, telefoon of e-mail. Pogingsbegrenzing gebruikt tijdelijke gehashte sleutels, geen blijvende IP-lijst.
 
-## Wat wordt opgeslagen
+Het afgeschermde beheer biedt dossierexport, correctie met revisiecontrole, intrekking en gegevenswissing na verificatie van het verzoek. Wissing verwijdert directe gegevens, vrije tekst en oorspronkelijke payloadhash, maar bewaart minimale stop-/idempotentiereferenties tegen heractivering. Dat is geen belofte van volledige anonimisering van alle bedrijfsdata. Een afzonderlijk account/dagmailabonnement vraagt bij een verzoek om alle gegevens óók verwerking in die dienst.
 
-- Naam, gekozen kanaal en ingevulde contactgegevens.
-- Optionele postcode en vraag.
-- Gekozen onderwerp en de module waar de aanvraag begon.
-- Alleen na bewuste keuze: de toegestane numerieke waarden van het rekenscenario.
-- Ontvangsttijd, aanvraagnummer, contacttekst, versie, verantwoordelijke onderneming en contacttermijn.
-- Opvolgstatus, door een beheerder toegevoegde notities en statusgeschiedenis.
-- Technische gegevens voor ontdubbeling, verzendwachtrij en beheersessies.
+Zie [PRIVACY-OPERATIONS.md](PRIVACY-OPERATIONS.md) voor identiteitcontrole, uitwerking van rechten, het concrete **concept**bewaarbeleid, retentiepreview en een aparte read-only herstelproef. Retentiepreview verwijdert niets. Pseudonieme interacties worden alleen na `ANALYTICS_RETENTION_CONFIRMED=true` volgens het voorgestelde 90-dagenbeleid opgeschoond. Definitieve termijnen, uitzonderingen, verwerkers en kopieën/back-ups vereisen NIVO-goedkeuring.
 
-Contactgegevens worden niet in algemene applicatielogs of analytics opgenomen. IP-adressen worden uitsluitend tijdelijk en gehasht gebruikt voor pogingsbegrenzing; deze counters staan in procesgeheugen.
+Het privéherstelregister bevat minimale contactstops, correctierevisies, erasures, abonnementsstops en adres-hashsuppressies. Het register blijft buiten Git/openbare artifacts. Een oude back-up mag deze latere rechten niet terugdraaien. De restorechecker controleert uitsluitend een afzonderlijke kopie en activeert niets.
 
-Een gebruiker kan wijziging of intrekking vragen via info@zonlio.nl. De organisatie moet dit verwerken in de backoffice en eventuele verdere dossiers. Deze release voert geen automatische verwijdering of anonimisering van echte leads uit. Leg vóór livegang bewaartermijnen en een operationele procedure voor inzage, intrekking en verwijdering vast. Een afzonderlijk beheerproces voor geautoriseerde anonimisering is een volgende implementatiestap.
+## Verzendbetrouwbaarheid
 
-## Betrouwbare ontvangst en verzending
+Een SMTP-fout wist de aanvraag niet. Begrensde retry, claimlease en gedeeld rollend budget beschermen verwerking. Voor verzending worden actuele contactrechten, status, verval, claims en suppressies opnieuw gecontroleerd. Een onduidelijke externe SMTP-uitkomst blijft een beperking: geen garantie op exact één inboxaflevering.
 
-Lead, contactbewijs en outboxtaken worden in één database-transactie geschreven. De browser krijgt alleen succes na commit. Een herhaling met dezelfde aanvraagcode en inhoud levert hetzelfde aanvraagnummer; gewijzigde inhoud met dezelfde code wordt geweigerd.
+Alle mailtypen gebruiken hetzelfde ingestelde appbudget van 1–100 pogingen per rollende 24 uur. De eigenaar bevestigde 100 als mailboxplafond; voorstel 50 voor Zonlio zodat er ruimte voor andere mail blijft. Dagmails krijgen maximaal 80% van het appbudget. `MAIL_SEND_PAUSED=true` stopt nieuwe verzendingen. Directe harde bounces en expliciet bevestigde beheerstops blijven via een minimale adres-hash geregistreerd, ook na accountverwijdering. Asynchrone bounces/klachten vereisen nog operationele mailboxafhandeling.
 
-De e-mailwachtrij staat los van de ontvangst. Een SMTP-fout verwijdert geen aanvraag. Na ontvangst wordt een kleine verzendbatch geprobeerd. Een beveiligde taak op `/api/tasks/maintenance` verwerkt daarna maximaal drie taken per aanroep, inclusief geplande herhalingen. Configureer hiervoor een betrouwbare periodieke taak; er draait geen permanente timer in de webapp.
+SMTP-acceptatie, ontvangen mail en gelezen mail zijn verschillende bewijsniveaus. De reeds ontvangen losse eigenaarstest bewijst uitsluitend die test. Werkelijke account-, aanvraag- en dagmailberichten, SPF/DKIM/DMARC-resultaten en afmeldheaders moeten apart worden bewezen. Zie [MAIL-AUTHENTICATION-QA.md](MAIL-AUTHENTICATION-QA.md) en het [operationsrunbook](AUTONOMOUS-OPERATIONS.md).
 
-Na acht mislukte pogingen krijgt een bericht de status `failed`, zichtbaar in beheer. Een beheerder kan een begrensde nieuwe poging starten. SMTP-acceptatie wordt niet als gegarandeerde aflevering in de inbox gepresenteerd. Een stabiele Message-ID is geen garantie op exact één SMTP-aflevering bij een onduidelijke netwerkuitkomst.
+## Beheer en activering
 
-Configuratie: `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_USER=info@zonlio.nl`, `SMTP_PASSWORD`, `LEAD_NOTIFY_TO`. Wachtwoorden staan uitsluitend in de beveiligde serverconfiguratie. Poort 465 gebruikt TLS vanaf de start met normale certificaatcontrole. `/api/admin/mail/verify` test verbinding/authenticatie zonder een e-mail te sturen.
+Productie gebruikt MySQL; geen lokale fallback. Beheer gebruikt een expliciet ingestelde scrypt-hash, een apart sessiegeheim en serverzijdige sessies. Productiecookies zijn Secure, HttpOnly en SameSite=Strict. Mutaties vereisen sessie, JSON, vertrouwde origin en CSRF; privacywijzigingen ook actuele revisie en expliciete verzoekcontrole. Onderhoud heeft een afzonderlijk geheim in de Authorization-header, nooit in de URL.
 
-## Database en beheer
+NIVO bepaalt welke persoon bevoegd beheerder is en welke vervanging beschikbaar is voor Pim. De huidige gedeelde applicatieconfiguratie biedt één beheeridentiteit; deel het wachtwoord niet als medewerkersoplossing. Publieke diensten blijven afzonderlijk uit totdat P0-bewijs en eigenaar-GO zijn vastgelegd. Een testdossiermachtiging is geen vrijgave voor publieke instroom.
 
-Productie gebruikt MySQL via `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`. Ontbrekende instellingen leiden nooit tot een lokale productiedatabase. Ontwikkeling en tests gebruiken Node SQLite met `SQLITE_PATH`; het standaard ontwikkelpad is `data/zonlio.sqlite` en hoort buiten Git en de statische build te blijven.
+Portal-export blijft uit. Later ontvangt alleen de bevestigde NIVO-ontvanger actuele woningdossiers volgens [contract v1](PORTAL-CONTRACT-v1.md), met revisionering, intrekking, verval en erasure. Zonlio bouwt geen directe Odoo-export.
 
-Maak een beheerdershash met `node scripts/create-admin.mjs` in een interactieve terminal. Het wachtwoord wordt verborgen ingevoerd en niet afgedrukt. Stel `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` en een willekeurige `SESSION_SECRET` van minimaal 32 tekens in. Voor onderhoud is een afzonderlijke `CRON_SECRET` van minimaal 32 tekens nodig.
+## Eerlijke meting
 
-Beheersessies zijn serverzijdig opgeslagen en in productie gekoppeld aan een Secure, HttpOnly, SameSite=Strict cookie. Beheerwijzigingen vereisen een geldige sessie, CSRF-token en toegestane origin. `PUBLIC_URL` (of de alias `APP_URL`) bepaalt de productie-origin; aanvullende eigen origins kunnen expliciet in `ALLOWED_ORIGINS` staan. Ontbrekende beheerconfiguratie geeft geen toegang.
+Ruwe serverpaginaweergaven zijn geaggregeerde tellingen zonder opgeslagen IP/cookie/bezoekers-ID en kunnen bots bevatten. Ze zijn geen unieke mensen. Interacties worden alleen na actieve statistiekentoestemming aangenomen. Het tijdelijke tab-ID wordt gehasht en per dag/module/event ontdubbeld; het blijft een pseudoniem. Weigeren en intrekken blijven toegankelijk; na intrekking stopt verzenden en wordt het tab-ID gewist.
 
-## Statistieken
+`calculator_complete` betekent een geldige bewuste rekenwijziging, bruikbaar plannerresultaat of expliciet resultaatgebruik; geen automatische rendering. Ontvangen advies komt uit opgeslagen aanvragen. De salesrapportage telt per bronmodule werkelijk vastgelegde mijlpalen uit huidige status en historie: poging, bereikt, gekwalificeerd, afspraak, offerte, gewonnen/verloren. Een overgeslagen stap wordt niet ingevuld. Dit bewijst nog geen volledig extern campagnepad of unieke-bezoekerconversie.
 
-Ruwe serverpaginaweergaven zijn geaggregeerde tellingen zonder opgeslagen IP, cookie of bezoekers-ID. Ze zijn geen telling van unieke personen en kunnen bots omvatten.
+## Primaire bronbasis
 
-Interactiegebeurtenissen worden uitsluitend aangenomen met expliciete statistiekentoestemming. De payload accepteert alleen een gebeurtenistype, browser-tab-ID, module en `consent:true`. Het ID wordt serverzijdig gehasht; het blijft een pseudoniem, geen bewijs van anonimiteit. Per dag, tab-ID, module en gebeurtenistype wordt ontdubbeld. De primaire leadaantallen komen uit opgeslagen aanvragen, niet uit klik-events.
-
-De frontend moet weigeren even toegankelijk maken als toestaan en geen gebeurtenissen sturen na intrekking. De actuele instelling staat los van toestemming voor een adviesgesprek. Functionele opslag en beperkte analyse hebben eigen voorwaarden; deze release gebruikt voor interactieve analyse bewust een opt-in.
-
-## Bronnen
-
-- [Thuisbatterij Team — privacybeleid](https://thuisbatterijteam.nl/voorwaarden-beleid/privacybeleid/)
-- [AP — AVG-grondslagen, waaronder gevraagde offertes](https://autoriteitpersoonsgegevens.nl/themas/basis-avg/avg-algemeen/grondslagen-avg-uitgelegd)
-- [AP — toestemming, bewijs en intrekken](https://autoriteitpersoonsgegevens.nl/themas/basis-avg/avg-algemeen/grondslag-toestemming)
-- [ACM — telemarketing vanaf 1 juli 2026](https://www.acm.nl/nl/publicaties/vanaf-1-juli-strengere-regels-voor-telemarketing-alleen-nog-maar-als-klant-toestemming-heeft-gegeven)
-- [ACM ConsuWijzer — spam via e-mail, sms en apps](https://consument.acm.nl/veilig-online/hoe-voorkom-ik-spam)
-- [AP — cookies](https://autoriteitpersoonsgegevens.nl/nl/onderwerpen/internet-telefoon-en-tv/cookies)
-- [Hostinger — e-mailconfiguratie](https://www.hostinger.com/support/4305847-set-up-hostinger-email-on-your-applications-and-devices/)
-- [Nodemailer — SMTP en verbindingscontrole](https://nodemailer.com/smtp)
+De actuele AP-bronnen over verificatie, privacyrechten, bewaartermijnen en back-ups staan met concrete toepassing in [PRIVACY-OPERATIONS.md](PRIVACY-OPERATIONS.md). Hostinger- en SMTP-bronnen staan in [DEPLOYMENT.md](DEPLOYMENT.md) en [MAIL-AUTHENTICATION-QA.md](MAIL-AUTHENTICATION-QA.md). Deze technische uitvoering vervangt geen bevoegde definitieve beleidsbeoordeling.

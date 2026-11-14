@@ -1,3 +1,11 @@
+# Actueel QA-register
+
+Voor `autonomy-ready-04-20261114` geldt het [releasebewijs](AUTONOMY-04-RELEASE-2026-11-14.md). Lokale tests, echte MySQL-CI, Chromium/WebKit, publieke productieobservatie en eigenaar-/inbox-/restorebewijs zijn afzonderlijke categorieën. De actuele deelregisters zijn [account/mail](COMPLETION-ACCOUNTS-QA-2026-11-14.md), [consument/SEO](COMPLETION-CONSUMER-QA-2026-11-14.md), [privacy/restore](PRIVACY-OPERATIONS.md) en [mailauthenticatie](MAIL-AUTHENTICATION-QA.md).
+
+## Historisch QA-bewijs van de oorspronkelijke pilot
+
+Onderstaande aantallen/commits zijn historisch; ze bewijzen niet dat een latere release of volledige productie-E2E is geaccepteerd.
+
 # Uitgevoerde verificatie
 
 Datum: 14 november 2026. Deze registratie hoort bij de broncodeversie; hosting en echte mailontvangst worden afzonderlijk geverifieerd.
