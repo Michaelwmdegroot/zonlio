@@ -374,3 +374,18 @@ test('maintenance heartbeat is persistent evidence and refuses to claim success 
   f.backend.store.operations.finishRun=async()=>false;
   const lost=await tick();assert.equal(lost.status,503);assert.equal(lost.body.maintenanceCompleted,false);
 });
+
+test('attention queue is private, rejects unknown filters and excludes withdrawn leads',async t=>{
+  const f=await setup(t);if(!f)return;
+  await f.api('/leads',{method:'POST',body:await f.application()});
+  assert.equal((await f.api('/admin/leads?queue=attention')).status,401);
+  const session=await f.login();
+  assert.equal((await f.api('/admin/leads?queue=invalid',session)).status,422);
+  assert.equal((await f.api('/admin/leads?queue=attention&queue=attention',session)).status,422);
+  const active=await f.api('/admin/leads?queue=attention&limit=1',session);
+  assert.equal(active.status,200);assert.equal(active.body.leads.length,1);
+  const id=active.body.leads[0].id;
+  assert.equal((await f.api('/admin/leads/'+id,{...session,method:'PATCH',body:{status:'withdrawn',expectedRevision:0}})).status,200);
+  assert.equal((await f.api('/admin/leads?queue=attention',session)).body.leads.length,0);
+  assert.equal((await f.api('/admin/leads',session)).body.leads.length,1);
+});

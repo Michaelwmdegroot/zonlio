@@ -273,12 +273,13 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     response.json({ok:true,message:'Verdere mail naar dit adres is geblokkeerd. Bestaande adviesaanvragen blijven apart beschikbaar.'});
   });
   router.get('/admin/leads', administrator, async (request, response) => {
-    const { status, cursor } = request.query;
+    const { status, cursor, queue } = request.query;
     const limit = Number(request.query.limit || 30);
-    if ((status && !STATUSES.includes(status)) || (cursor && !UUID.test(cursor)) || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+    if ((status && !STATUSES.includes(status)) || (cursor && !UUID.test(cursor))
+      || (queue !== undefined && queue !== 'attention') || !Number.isInteger(limit) || limit < 1 || limit > 100) {
       return response.status(422).json({ error: 'Ongeldig filter of paginanummer.' });
     }
-    response.json(await store.listLeads({ status, cursor, limit }));
+    response.json(await store.listLeads({ status, cursor, limit, queue }));
   });
   router.get('/admin/leads/:id', administrator, async (request, response) => {
     if (!UUID.test(request.params.id)) return response.status(404).json({ error: 'Aanvraag niet gevonden.' });

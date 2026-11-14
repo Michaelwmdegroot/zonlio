@@ -237,8 +237,11 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         ]);
         if (input.intake) await db.run('INSERT INTO lead_intakes (lead_id,kind,address_json,contact_preference,created_at) VALUES (?,?,?,?,?)',
           [id, input.intake.kind, JSON.stringify(input.intake.address), input.intake.contactPreference, createdAt]);
+        // NIVO receives an actionable review, never a fictitious contact milestone.
+        const nivoRequest = input.controller.name === OPERATOR.name;
         await db.run('INSERT INTO lead_followups (lead_id,owner_label,next_action,next_action_on,revision) VALUES (?,?,?,?,?)',
-          [id, input.intake && input.controller.name === OPERATOR.name ? 'Pim' : '', '', null, 0]);
+          [id,nivoRequest?'Pim':'',nivoRequest?'Nieuwe aanvraag beoordelen en contactvoorkeur controleren':'',
+            nivoRequest?calendarDay(createdAt):null,0]);
         await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',
           [randomUUID(), id, 'new', 'Adviesaanvraag ontvangen.', 'website', createdAt]);
         for (const kind of ['internal_notification', ...(input.email ? ['customer_confirmation'] : [])]) {
@@ -262,10 +265,19 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
       }
     },
 
-    async listLeads({ status, limit = 30, cursor } = {}) {
+    async listLeads({ status, limit = 30, cursor, queue } = {}) {
       return adapter.work(async (db) => {
         const filters = []; const params = [];
         if (status) { filters.push('l.status = ?'); params.push(status); }
+        if (queue === 'attention') {
+          // Include existing unplanned records without altering consent or history.
+          // Only active contact rights are displayed as follow-up work.
+          filters.push(`l.contact_requested=1 AND l.contact_expires_at>? AND
+            l.status NOT IN ('won','lost','closed','withdrawn') AND
+            (l.status='new' OR f.owner_label IS NULL OR f.owner_label='' OR
+             f.next_action_on IS NULL OR f.next_action_on<=?)`);
+          params.push(stamp(),calendarDay(now()));
+        }
         if (cursor) {
           const after = await db.get('SELECT created_at,id FROM leads WHERE id = ?', [cursor]);
           if (after) {
@@ -422,10 +434,13 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
           FROM leads l LEFT JOIN lead_followups f ON f.lead_id=l.id
           WHERE l.status NOT IN ('won','lost','closed','withdrawn')`);
         const actionable = allOpen.filter(r => r.contact_requested && r.contact_expires_at > at);
+        const today=calendarDay(now());
+        const needsAttention = r => r.status==='new' || !r.owner_label || !r.next_action_on || r.next_action_on<=today;
         const workload = { open: allOpen.length, actionable: actionable.length,
+          attention: actionable.filter(needsAttention).length,
           unassigned: actionable.filter(r => !r.owner_label).length,
           unhandled: actionable.filter(r => r.status==='new' && Date.parse(r.created_at)<now()-24*3600000).length,
-          due: actionable.filter(r => r.next_action_on && r.next_action_on <= calendarDay(now())).length,
+          due: actionable.filter(r => r.next_action_on && r.next_action_on <= today).length,
           expired: allOpen.filter(r => r.contact_expires_at <= at).length,
           scope: 'Alle open dossiers, los van de gekozen instroomperiode. Acties uitsluitend binnen geldige contactverzoeken.' };
         const sources = ['overzicht','planner','2027','batterij'].map(sourcePath => {
