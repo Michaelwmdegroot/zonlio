@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { LEAD_STATUS_LABELS, CLOSED_STATUSES, followUpFieldErrors, housingFieldErrors } from '../src/advice-schema.mjs';
 
 export class StoreConflict extends Error {
   constructor() { super('Deze aanvraagcode is al voor andere gegevens gebruikt.'); this.code = 'IDEMPOTENCY_CONFLICT'; }
+}
+
+export class LeadUpdateConflict extends Error {
+  constructor(message = 'Dit dossier is ondertussen gewijzigd. Open het opnieuw voordat je opslaat.') { super(message); this.code = 'LEAD_UPDATE_CONFLICT'; }
 }
 
 const SCHEMA = [
@@ -17,6 +22,18 @@ const SCHEMA = [
     controller_name VARCHAR(200) NOT NULL, controller_email VARCHAR(254) NOT NULL,
     contact_requested INTEGER NOT NULL, contact_expires_at VARCHAR(27) NOT NULL,
     status VARCHAR(16) NOT NULL, created_at VARCHAR(27) NOT NULL, updated_at VARCHAR(27) NOT NULL
+  )`,
+  // Additive extension tables: existing leads and their evidence are not rewritten.
+  `CREATE TABLE IF NOT EXISTS lead_intakes (
+    lead_id VARCHAR(36) PRIMARY KEY, kind VARCHAR(16) NOT NULL,
+    address_json TEXT NOT NULL, contact_preference VARCHAR(16) NOT NULL,
+    created_at VARCHAR(27) NOT NULL,
+    FOREIGN KEY (lead_id) REFERENCES leads(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS lead_followups (
+    lead_id VARCHAR(36) PRIMARY KEY, owner_label VARCHAR(120) NOT NULL,
+    next_action VARCHAR(500) NOT NULL, next_action_on VARCHAR(10), revision INTEGER NOT NULL,
+    FOREIGN KEY (lead_id) REFERENCES leads(id)
   )`,
   `CREATE TABLE IF NOT EXISTS lead_history (
     id VARCHAR(36) PRIMARY KEY, lead_id VARCHAR(36) NOT NULL,
@@ -63,6 +80,10 @@ function periodDays(now, days) {
   const noon = Date.parse(`${today}T12:00:00Z`);
   return Array.from({ length: days }, (_, i) => new Date(noon - (days - i - 1) * 86400000).toISOString().slice(0, 10));
 }
+const LEAD_QUERY = `SELECT l.*, i.kind AS intake_kind, i.address_json, i.contact_preference,
+  f.owner_label, f.next_action, f.next_action_on, f.revision,
+  (SELECT o.status FROM outbox o WHERE o.lead_id=l.id AND o.kind='internal_notification' LIMIT 1) AS notification_status
+  FROM leads l LEFT JOIN lead_intakes i ON i.lead_id=l.id LEFT JOIN lead_followups f ON f.lead_id=l.id`;
 function toLead(row) {
   if (!row) return null;
   return {
@@ -75,6 +96,11 @@ function toLead(row) {
     contactRequested: Boolean(row.contact_requested), contactExpiresAt: row.contact_expires_at,
     status: row.status, createdAt: row.created_at, updatedAt: row.updated_at,
     notificationStatus: row.notification_status || 'pending',
+    kind: row.intake_kind || 'general',
+    housing: row.address_json ? JSON.parse(row.address_json) : null,
+    contactPreference: row.contact_preference || 'any',
+    followUp: { owner: row.owner_label || '', nextAction: row.next_action || '', nextActionOn: row.next_action_on || '' },
+    revision: Number(row.revision || 0),
   };
 }
 function duplicateError(error) {
@@ -170,8 +196,12 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
     close: () => adapter.close(),
 
     async createLead(input, payloadHash) {
+      if (input.intake && (input.intake.kind !== 'housing' || Object.keys(housingFieldErrors({
+        housing: input.intake.address, postcode: input.postcode, contactPreference: input.intake.contactPreference,
+        topic: input.topic,
+      })).length || input.channel !== 'phone' || !input.phone)) throw new TypeError('Ongeldige woningintake.');
       const save = async () => adapter.work(async (db) => {
-        const existing = await db.get('SELECT * FROM leads WHERE request_id = ?', [input.requestId]);
+        const existing = await db.get(`${LEAD_QUERY} WHERE l.request_id = ?`, [input.requestId]);
         if (existing) {
           if (existing.payload_hash !== payloadHash) throw new StoreConflict();
           return { lead: toLead(existing), duplicate: true };
@@ -191,20 +221,24 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
           input.shareScenario ? 1 : 0, input.sourcePath, input.consentVersion, input.contactText,
           input.controller.name, input.controller.email, 1, expiresAt, 'new', createdAt, createdAt,
         ]);
+        if (input.intake) await db.run('INSERT INTO lead_intakes (lead_id,kind,address_json,contact_preference,created_at) VALUES (?,?,?,?,?)',
+          [id, input.intake.kind, JSON.stringify(input.intake.address), input.intake.contactPreference, createdAt]);
+        await db.run('INSERT INTO lead_followups (lead_id,owner_label,next_action,next_action_on,revision) VALUES (?,?,?,?,?)',
+          [id, '', '', null, 0]);
         await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',
           [randomUUID(), id, 'new', 'Adviesaanvraag ontvangen.', 'website', createdAt]);
         for (const kind of ['internal_notification', ...(input.email ? ['customer_confirmation'] : [])]) {
           await db.run(`INSERT INTO outbox (id,unique_key,lead_id,kind,status,attempts,next_attempt_at,created_at)
             VALUES (?,?,?,?,?,?,?,?)`, [randomUUID(), `${id}:${kind}:v1`, id, kind, 'pending', 0, createdAt, createdAt]);
         }
-        return { lead: toLead(await db.get('SELECT * FROM leads WHERE id = ?', [id])), duplicate: false };
+        return { lead: toLead(await db.get(`${LEAD_QUERY} WHERE l.id = ?`, [id])), duplicate: false };
       }, true);
       try { return await save(); }
       catch (error) {
         // MySQL may race on the unique request_id; inspect after rollback in a new transaction.
         if (!duplicateError(error)) throw error;
         return adapter.work(async (db) => {
-          const existing = await db.get('SELECT * FROM leads WHERE request_id = ?', [input.requestId]);
+          const existing = await db.get(`${LEAD_QUERY} WHERE l.request_id = ?`, [input.requestId]);
           if (!existing) throw error;
           if (existing.payload_hash !== payloadHash) throw new StoreConflict();
           return { lead: toLead(existing), duplicate: true };
@@ -223,9 +257,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
             params.push(after.created_at, after.created_at, after.id);
           }
         }
-        const rows = await db.all(`SELECT l.*,
-          (SELECT o.status FROM outbox o WHERE o.lead_id=l.id AND o.kind='internal_notification' LIMIT 1) AS notification_status
-          FROM leads l ${filters.length ? `WHERE ${filters.join(' AND ')}` : ''}
+        const rows = await db.all(`${LEAD_QUERY} ${filters.length ? `WHERE ${filters.join(' AND ')}` : ''}
           ORDER BY l.created_at DESC,l.id DESC LIMIT ${Math.min(100, limit) + 1}`, params);
         const hasMore = rows.length > limit;
         const selected = rows.slice(0, limit);
@@ -235,24 +267,39 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
 
     async getLead(id) {
       return adapter.work(async (db) => {
-        const lead = toLead(await db.get(`SELECT l.*,
-          (SELECT o.status FROM outbox o WHERE o.lead_id=l.id AND o.kind='internal_notification' LIMIT 1) AS notification_status
-          FROM leads l WHERE l.id=?`, [id]));
+        const lead = toLead(await db.get(`${LEAD_QUERY} WHERE l.id=?`, [id]));
         if (!lead) return null;
         const history = await db.all('SELECT * FROM lead_history WHERE lead_id=? ORDER BY created_at,id', [id]);
         return { lead, history: history.map((row) => ({ id: row.id, status: row.status, note: row.note, actor: row.actor, createdAt: row.created_at })) };
       });
     },
 
-    async updateLead(id, { status, note = '', actor }) {
+    async updateLead(id, { status, note = '', actor, followUp, expectedRevision }) {
+      if (!Object.hasOwn(LEAD_STATUS_LABELS, status)) throw new TypeError('Ongeldige opvolgstatus.');
+      if (followUp !== undefined && Object.keys(followUpFieldErrors(followUp)).length) throw new TypeError('Ongeldige opvolggegevens.');
       return adapter.work(async (db) => {
-        const existing = await db.get('SELECT id FROM leads WHERE id=?', [id]);
-        if (!existing) return null;
+        // Lock the parent row: protects the first extension insert for legacy leads as well.
+        const parent = await db.get(`SELECT id,status,contact_requested,contact_expires_at FROM leads WHERE id=?${adapter.dialect === 'mysql' ? ' FOR UPDATE' : ''}`, [id]);
+        if (!parent) return null;
+        const existing = toLead(await db.get(`${LEAD_QUERY} WHERE l.id=?`, [id]));
+        if (expectedRevision !== undefined && expectedRevision !== existing.revision) throw new LeadUpdateConflict();
+        if (existing.status === 'withdrawn' && status !== 'withdrawn') throw new LeadUpdateConflict('Een ingetrokken contactverzoek kan niet via een statuswijziging worden heropend.');
         const at = stamp();
-        await db.run('UPDATE leads SET status=?,updated_at=? WHERE id=?', [status, at, id]);
+        const next = followUp ? { owner: followUp.owner.trim(), nextAction: followUp.nextAction.trim(), nextActionOn: followUp.nextActionOn } : { ...existing.followUp };
+        if (status === 'assigned' && !next.owner) throw new LeadUpdateConflict('Vul een verantwoordelijke in voordat je dit dossier toewijst.');
+        if (CLOSED_STATUSES.includes(status)) { next.nextAction = ''; next.nextActionOn = ''; }
+        if (next.nextActionOn && (!existing.contactRequested || existing.contactExpiresAt <= at || next.nextActionOn >= calendarDay(existing.contactExpiresAt))) {
+          throw new LeadUpdateConflict('Plan geen contactactie buiten de geldigheid van dit contactverzoek.');
+        }
+        await db.run(`${insertIgnore} INTO lead_followups (lead_id,owner_label,next_action,next_action_on,revision) VALUES (?,?,?,?,?)`, [id, '', '', null, 0]);
+        await db.run('UPDATE lead_followups SET owner_label=?,next_action=?,next_action_on=?,revision=? WHERE lead_id=?',
+          [next.owner, next.nextAction, next.nextActionOn || null, existing.revision + 1, id]);
+        await db.run('UPDATE leads SET status=?,contact_requested=?,updated_at=? WHERE id=?',
+          [status, status === 'withdrawn' ? 0 : existing.contactRequested ? 1 : 0, at, id]);
         await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',
-          [randomUUID(), id, status, note, actor, at]);
-        return toLead(await db.get('SELECT * FROM leads WHERE id=?', [id]));
+          [randomUUID(), id, status, [note, followUp ? `Opvolging: ${next.owner || 'niet toegewezen'}; ${next.nextAction || 'geen actie'}${next.nextActionOn ? ' — ' + next.nextActionOn : ''}` : ''].filter(Boolean).join('\n'), actor, at]);
+        if (status === 'withdrawn') await db.run("UPDATE outbox SET status='cancelled',locked_until=NULL,claim_token=NULL,last_error='CONTACT_WITHDRAWN' WHERE lead_id=? AND status IN ('pending','processing','failed')", [id]);
+        return toLead(await db.get(`${LEAD_QUERY} WHERE l.id=?`, [id]));
       }, true);
     },
 
@@ -284,7 +331,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         const rows = await db.all('SELECT status,COUNT(*) AS total FROM outbox GROUP BY status');
         const counts = Object.fromEntries(rows.map((row) => [row.status, Number(row.total)]));
         const last = await db.get("SELECT MAX(sent_at) AS last_success FROM outbox WHERE status='sent'");
-        return { pending: (counts.pending || 0) + (counts.processing || 0), failed: counts.failed || 0, sent: counts.sent || 0, lastSuccessAt: last?.last_success || null };
+        return { pending: (counts.pending || 0) + (counts.processing || 0), failed: counts.failed || 0, sent: counts.sent || 0, cancelled: counts.cancelled || 0, lastSuccessAt: last?.last_success || null };
       });
     },
 
@@ -302,9 +349,21 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         const viewMap = Object.fromEntries(views.map((r) => [r.day, Number(r.total)]));
         const sessionMap = Object.fromEntries(sessions.map((r) => [r.day, Number(r.total)]));
         const eventMap = Object.fromEntries(events.map((r) => [r.event, Number(r.total)]));
-        const counts = Object.fromEntries(['new', 'contacted', 'qualified', 'won', 'closed'].map((status) => [status, rows.filter((r) => r.status === status).length]));
+        const counts = Object.fromEntries(Object.keys(LEAD_STATUS_LABELS).map((status) => [status, rows.filter((r) => r.status === status).length]));
+        const at = stamp();
+        const allOpen = await db.all(`SELECT l.contact_requested,l.contact_expires_at,f.owner_label,f.next_action_on
+          FROM leads l LEFT JOIN lead_followups f ON f.lead_id=l.id
+          WHERE l.status NOT IN ('won','lost','closed','withdrawn')`);
+        const actionable = allOpen.filter(r => r.contact_requested && r.contact_expires_at > at);
+        const workload = { open: allOpen.length, actionable: actionable.length,
+          unassigned: actionable.filter(r => !r.owner_label).length,
+          due: actionable.filter(r => r.next_action_on && r.next_action_on <= calendarDay(now())).length,
+          expired: allOpen.filter(r => r.contact_expires_at <= at).length,
+          scope: 'Alle open dossiers, los van de gekozen instroomperiode. Acties uitsluitend binnen geldige contactverzoeken.' };
+        const sources = ['overzicht','planner','2027','batterij'].map(sourcePath => ({ sourcePath,
+          leads: rows.filter(r => r.source_path === sourcePath).length }));
         return {
-          days, from: dates[0], to: dates.at(-1),
+          days, from: dates[0], to: dates.at(-1), workload, acquisition: sources,
           totals: { leads: rows.length, ...counts, pageViews: views.reduce((n, r) => n + Number(r.total), 0),
             consentedSessions: Number(sessionCount?.total || 0), calculatorCompleted: eventMap.calculator_complete || 0, adviceOpened: eventMap.advice_open || 0 },
           daily: dates.map((date) => ({ date, leads: rows.filter((r) => calendarDay(r.created_at) === date).length, pageViews: viewMap[date] || 0, sessions: sessionMap[date] || 0 })),
@@ -329,13 +388,17 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         return rows;
       }, true);
     },
+    async cancelMail(item, reason = 'CONTACT_NOT_ACTIVE') {
+      await adapter.work(db => db.run("UPDATE outbox SET status='cancelled',locked_until=NULL,claim_token=NULL,last_error=? WHERE id=? AND claim_token=?",
+        [reason, item.id, item.claim_token]));
+    },
     async finishMail(item, { success, errorCode = 'SMTP_ERROR' }) {
       const at = stamp();
       const delays = [60000, 300000, 900000, 3600000, 10800000, 43200000, 86400000];
       const failed = !success && item.attempts >= 8;
       const next = new Date(new Date(at).getTime() + delays[Math.min(item.attempts - 1, delays.length - 1)]).toISOString();
       await adapter.work((db) => db.run(`UPDATE outbox SET status=?,next_attempt_at=?,locked_until=NULL,
-        claim_token=NULL,last_error=?,sent_at=? WHERE id=? AND claim_token=?`,
+        claim_token=NULL,last_error=?,sent_at=? WHERE id=? AND claim_token=? AND status='processing'`,
       [success ? 'sent' : failed ? 'failed' : 'pending', next, success ? null : errorCode, success ? at : null, item.id, item.claim_token]));
     },
     async retryFailedMail(limit = 5) {

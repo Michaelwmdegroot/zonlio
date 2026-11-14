@@ -154,3 +154,88 @@ test('ontbrekende productiedatabase laat de publieke configuratie werken maar ge
   assert.equal((await fixture.api('/leads', { method: 'POST', body: {} })).status, 503);
   assert.equal(fixture.backend.health().databaseReady, false);
 });
+
+
+test('woningadvies heeft een afzonderlijke gesloten gate, ook met werkende legacy-intake', async t => {
+  const f = await setup(t);
+  assert.equal((await f.api('/config')).body.housingAdviceEnabled, false);
+  const response = await f.api('/housing-leads', { method: 'POST', body: await f.application() });
+  assert.equal(response.status, 503);
+  assert.equal((await f.backend.store.stats(7)).totals.leads, 0);
+});
+
+test('woningadvies: complete intake, bewijs, ontdubbeling en geen impliciete scenario-overdracht', async t => {
+  const f = await setup(t, { env: { HOUSING_ADVICE_ENABLED: 'true', LEAD_CONTROLLER_CONFIRMED: 'true', LEAD_CONTROLLER_NAME: 'NIVO testontvanger' } });
+  const config = (await f.api('/config')).body;
+  assert.equal(config.housingAdviceEnabled, true);
+  const input = await f.application({ channel: 'phone', phone: '06 1234 5678', postcode: '2311 AB',
+    housing: { street: 'Teststraat', houseNumber: '12', addition: 'A', city: 'Teststad' },
+    contactPreference: 'afternoon', consentVersion: config.housingConsentVersion,
+    scenario: { profile: { annualUse: 5000 } } });
+  const response = await f.api('/housing-leads', { method: 'POST', body: input });
+  assert.equal(response.status, 201);
+  const again = await f.api('/housing-leads', { method: 'POST', body: input });
+  assert.equal(again.status, 200); assert.equal(again.body.reference, response.body.reference);
+  assert.equal((await f.api('/housing-leads', { method: 'POST', body: { ...input, housing: { ...input.housing, houseNumber: '14' } } })).status, 409);
+  const session = await f.login();
+  const lead = (await f.api('/admin/leads', session)).body.leads[0];
+  assert.equal(lead.kind, 'housing'); assert.equal(lead.phone, '+31612345678');
+  assert.equal(lead.postcode, '2311AB'); assert.equal(lead.housing.houseNumber, '12');
+  assert.equal(lead.contactPreference, 'afternoon'); assert.equal(lead.scenario, null);
+  assert.equal(lead.consentVersion, config.housingConsentVersion);
+  assert.equal(lead.contactText, config.housingContactText);
+  assert.equal(lead.controller.name, 'NIVO testontvanger');
+  assert.equal(lead.revision, 0);
+  assert.equal((await f.backend.store.mailStats()).pending, 2);
+  assert.doesNotMatch(JSON.stringify(f.logs), /Teststraat|12345678|Test Aanvrager/);
+});
+
+test('woningadvies weigert ontbrekende NAW/telefoon, verkeerde toestemming en extra marketingvelden', async t => {
+  const f = await setup(t, { env: { HOUSING_ADVICE_ENABLED: 'true', LEAD_CONTROLLER_CONFIRMED: 'true', LEAD_CONTROLLER_NAME: 'NIVO testontvanger' } });
+  const input = await f.application({ channel: 'phone', phone: '+31612345678', postcode: '2311AB',
+    housing: { street: 'Teststraat', houseNumber: '12', city: 'Teststad' }, contactPreference: 'any', consentVersion: '2026-11-14-housing-v1' });
+  for (const change of [{housing:undefined},{postcode:'2311'},{phone:''},{channel:'email'},
+    {consentVersion:'2026-11-14-v1'},{marketing:true},{contactRequested:false},{housing:{...input.housing,verified:true}}]) {
+    const response = await f.api('/housing-leads', { method: 'POST', body: {...input,...change} });
+    assert.equal(response.status, 422, JSON.stringify(change));
+  }
+  assert.equal((await f.backend.store.stats(7)).totals.leads, 0);
+});
+
+test('woningadvies verlangt expliciete controller en bevestiging naast de eigen flag', async t => {
+  for (const extra of [{}, {LEAD_CONTROLLER_NAME:'NIVO test'}, {LEAD_CONTROLLER_CONFIRMED:'true'}, {LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'   '}]) {
+    const f = await setup(t, {env:{HOUSING_ADVICE_ENABLED:'true',...extra}});
+    assert.equal((await f.api('/config')).body.housingAdviceEnabled, false);
+  }
+});
+
+test('beheeropvolging: CSRF, revisieconflict en intrekking stoppen wachtrij', async t => {
+  const f = await setup(t);
+  await f.api('/leads',{method:'POST',body:await f.application()});
+  const session=await f.login();
+  const lead=(await f.api('/admin/leads',session)).body.leads[0];
+  const path='/admin/leads/'+lead.id;
+  const body={status:'assigned',expectedRevision:0,followUp:{owner:'Team test',nextAction:'Bespreek de hulpvraag',nextActionOn:'2026-11-14'}};
+  assert.equal((await f.api(path,{cookie:session.cookie,method:'PATCH',body})).status,403);
+  let result=await f.api(path,{...session,method:'PATCH',body});
+  assert.equal(result.status,200);assert.equal(result.body.lead.revision,1);
+  assert.equal((await f.api(path,{...session,method:'PATCH',body})).status,409);
+  const stats=(await f.api('/admin/stats',session)).body;
+  assert.equal(stats.workload.due,1);assert.equal(stats.workload.unassigned,0);
+  assert.equal(stats.acquisition.find(row=>row.sourcePath==='2027').leads,1);
+  result=await f.api(path,{...session,method:'PATCH',body:{status:'withdrawn',expectedRevision:1}});
+  assert.equal(result.status,200);assert.equal(result.body.lead.contactRequested,false);
+  assert.equal(result.body.lead.followUp.nextActionOn,'');
+  assert.equal((await f.backend.store.mailStats()).pending,0);
+  assert.equal((await f.backend.store.mailStats()).cancelled,2);
+  assert.equal((await f.api(path,{...session,method:'PATCH',body:{status:'new',expectedRevision:2}})).status,409);
+});
+
+test('opvolging weigert extra velden, ongeldige datum en actie na contacttermijn', async t => {
+  const f=await setup(t);await f.api('/leads',{method:'POST',body:await f.application()});
+  const session=await f.login();const lead=(await f.api('/admin/leads',session)).body.leads[0];const path='/admin/leads/'+lead.id;
+  for(const body of [{status:'new',newsletter:true},{status:'new',expectedRevision:-1},{status:'new',followUp:{owner:'Test',nextAction:'Bel',nextActionOn:'2026-02-30'}},{status:'new',followUp:{owner:'',nextAction:'Bel',nextActionOn:'2026-11-16'}}]) {
+    assert.equal((await f.api(path,{...session,method:'PATCH',body})).status,422);
+  }
+  assert.equal((await f.api(path,{...session,method:'PATCH',body:{status:'new',followUp:{owner:'Test',nextAction:'Bel',nextActionOn:'2027-01-01'}}})).status,409);
+});

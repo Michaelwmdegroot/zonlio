@@ -463,3 +463,36 @@ dialog::backdrop { background: rgb(20 42 76 / 24%); backdrop-filter: blur(7px); 
   body::before, .value-strip { display: none; }
   .panel { background: white; box-shadow: none; }
 }
+
+/* 10 / Woningadvies and follow-up — same shared design contract. */
+#housing-form [hidden], .advice-actions [hidden] { display: none !important; }
+.advice-steps { display: flex; gap: var(--z-space-2); list-style: none; padding: 0; margin: var(--z-space-5) 0; }
+.advice-steps li { flex: 1; padding: var(--z-space-2); border-radius: var(--z-radius-sm); color: var(--z-text-secondary); background: var(--z-control); font-size: var(--z-text-xs); text-align: center; }
+.advice-steps li[aria-current] { background: var(--z-action-soft); color: var(--z-action); font-weight: var(--z-weight-heading); box-shadow: inset 0 -2px var(--z-action); }
+#housing-form h3 { margin: var(--z-space-5) 0 var(--z-space-3); }
+#housing-form .field { margin-bottom: var(--z-space-4); }
+#housing-form .mini-note { margin-bottom: var(--z-space-4); }
+.advice-actions { display: flex; gap: var(--z-space-3); justify-content: space-between; margin-top: var(--z-space-5); }
+.advice-actions .button-primary { flex: 1; }
+.advice-review { display: grid; gap: var(--z-space-3); background: var(--z-glass); border: 1px solid var(--z-line); border-radius: var(--z-radius-control); padding: var(--z-space-4); margin: 0 0 var(--z-space-5); }
+.advice-review > div { display: grid; grid-template-columns: 110px minmax(0,1fr); gap: var(--z-space-3); }
+.advice-review dt { color: var(--z-text-secondary); font-size: var(--z-text-sm); }
+.advice-review dd { margin: 0; overflow-wrap: anywhere; font-weight: var(--z-weight-medium); }
+.workload-panel { margin-bottom: var(--z-space-5); }
+.workload-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--z-space-4); }
+.workload-grid strong { display: block; font-size: 28px; font-variant-numeric: tabular-nums; }
+.workload-grid span { font-size: var(--z-text-sm); color: var(--z-text-secondary); }
+.workflow-warning { padding: var(--z-space-3) var(--z-space-4); border-radius: var(--z-radius-control); background: var(--z-warning-soft); color: var(--z-warning); margin-bottom: var(--z-space-4); }
+.lead-status.withdrawn, .lead-status.lost { color: var(--z-danger); background: var(--z-danger-soft); }
+.lead-status.attempted, .lead-status.assigned { color: var(--z-warning); background: var(--z-warning-soft); }
+.lead-status.appointment, .lead-status.quoted { color: var(--z-action); background: var(--z-action-soft); }
+.lead-followup-summary { display: block; max-width: 210px; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .advice-review > div { grid-template-columns: 1fr; gap: var(--z-space-1); }
+  .workload-grid { gap: var(--z-space-2); }
+  .workload-grid strong { font-size: 24px; }
+  .advice-steps { gap: var(--z-space-1); }
+}
+/* A wide lead table scrolls inside its own card, never the page. */
+.admin-table-scroll { width: 100%; min-width: 0; contain: inline-size layout; }
+.daily-table:not([open]) > .admin-table-scroll { display: none; }

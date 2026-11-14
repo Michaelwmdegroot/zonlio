@@ -22,6 +22,12 @@ Maak een offline, interactieve ontwerpversie met `node scripts/design-preview.mj
 
 Een designreview is geen productie- of commerciële vrijgave. De P0-issues blijven open en leadactivatie vereist afzonderlijk bewijs en eigenaarakkoord.
 
+## Groei-iteratie 1 — woningadvies en opvolging
+
+De eigenaar heeft de vervolgbouw op `main` aangevraagd. De eerste afgebakende implementatie voegt een drie-stappen-woningadviesformulier, volledige woningadresopslag, opvolgacties, revisiebescherming en intrekking toe. De bestaande algemene adviesroute blijft werken; nieuwe woningaanvragen hebben de **aparte standaard uitgeschakelde** vlag `HOUSING_ADVICE_ENABLED`. Het dashboard toont deze status en de effectieve ontvanger. Geen abonnementen, accounts, dagmailer of Odoo-koppeling worden door deze release geactiveerd.
+
+Lees [implementatie, QA en vrijgavegrenzen](docs/GROWTH-01-2026-11-14.md). De juridische entiteit voor NIVO, SMTP/inbox, cron, bewaarbeleid en productieherstel blijven P0. De publieke privacy- en contactpagina gebruiken dezelfde geconfigureerde bedrijfsnaam als de API; die technische consistentie is geen juridische bevestiging.
+
 ## Wat de applicatie doet
 
 | Onderdeel | Gedrag |

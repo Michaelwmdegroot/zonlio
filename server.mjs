@@ -12,6 +12,13 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const VERSION = '1.0.0';
 const POLICY = ["default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data:", "font-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "frame-ancestors 'none'", "form-action 'self'"].join('; ');
 
+/** Render only the explicit public-company marker; never evaluate a template. */
+export function renderLegalController(html, controller) {
+  const name = String(controller?.name || 'De in het formulier genoemde adviesontvanger')
+    .replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  return html.replace(/<!--zonlio:controller-->[\s\S]*?<!--\/zonlio:controller-->/g, () => name);
+}
+
 export function safeRequestPath(rawUrl = '/') {
   const raw = rawUrl.split('?')[0];
   if (!raw.startsWith('/') || raw.startsWith('//')) return null;
@@ -95,7 +102,8 @@ export async function createAppServer({rootDir=ROOT,preferDist=true,qaMode=false
     try {
       const file=join(assetRoot,asset.name);
       if (await realpath(file)!==file||!(await stat(file)).isFile()) return res.status(404).end();
-      const bytes=await readFile(file);
+      let bytes=await readFile(file);
+      if (['pages/privacy.html','pages/contact.html'].includes(asset.name)) bytes=Buffer.from(renderLegalController(bytes.toString('utf8'), backend.controller));
       if (req.safePath==='/'&&req.method==='GET'&&!/bot|crawler|spider|headless|monitor/i.test(req.get('user-agent')||'')) Promise.resolve(backend.recordPageView?.()).catch(()=>{});
       res.setHeader('Cache-Control',req.safePath.startsWith('/admin')?'no-store':'no-cache');
       return res.type(asset.type).send(bytes);

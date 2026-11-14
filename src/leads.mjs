@@ -1,10 +1,15 @@
 import { api } from './api.mjs';
+import { openHousingAdvice } from './housing-advice.mjs';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const topics={battery:'Past een thuisbatterij bij mij?',solar:'Meer eigen zonnestroom gebruiken',contract:'Mijn stroomcontract begrijpen',other:'Een andere vraag over verduurzaming'};
 const fields=['annualUse','annualSolar','selfUsePct','targetPct','importRate','exportRate','exportFee','investment','extraSolarStored','roundTripEfficiency','annualCosts','lifeYears'];
 
-export function openLeadForm({config,profile,sourcePath,summary,showDialog,onOpened=()=>{}}) {
+export function openLeadForm({config,profile,sourcePath,summary,showDialog,onOpened=()=>{},generalOnly=false}) {
+  if(!generalOnly && config?.housingAdviceEnabled === true) {
+    return openHousingAdvice({config,profile,sourcePath,summary,showDialog,onOpened,
+      onGeneral:()=>openLeadForm({config,profile,sourcePath,summary,showDialog,onOpened,generalOnly:true})});
+  }
   const receiver=config?.controller?.name||'Thuisbatterij Team B.V.';
   if(config?.leadEnabled!==true||typeof config.contactTexts?.email!=='string'||typeof config.contactTexts?.phone!=='string') {
     showDialog(`<span class="badge">Persoonlijk advies</span><h2 id="dialog-title">Stel je vraag aan Zonlio.</h2><p class="dialog-text">Het aanvraagformulier is op dit moment niet beschikbaar. Je kunt ons bereiken via <a href="mailto:info@zonlio.nl">info@zonlio.nl</a>.</p><div class="detail-box">Je berekening blijft beschikbaar. Er is geen aanvraag verzonden.</div><div class="dialog-actions"><button class="button button-primary" data-action="close-dialog">Terug naar mijn inzicht</button><a class="button button-secondary" href="/contact">Contactgegevens</a></div>`);

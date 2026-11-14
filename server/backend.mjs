@@ -1,13 +1,14 @@
 import express from 'express';
 import { domainToASCII } from 'node:url';
-import { createStore, StoreConflict } from './store.mjs';
+import { createStore, StoreConflict, LeadUpdateConflict } from './store.mjs';
+import { HOUSING_CONSENT_VERSION, LEAD_STATUS_LABELS, housingFieldErrors, followUpFieldErrors } from '../src/advice-schema.mjs';
 import { createAuth, sha256 } from './auth.mjs';
 import { createMail } from './mail.mjs';
 
 export const CONSENT_VERSION = '2026-11-14-v1';
 const PATHS = ['overzicht', 'planner', '2027', 'batterij'];
-const TOPICS = ['battery', 'solar', 'contract', 'other'];
-const STATUSES = ['new', 'contacted', 'qualified', 'won', 'closed'];
+const TOPICS = ['battery', 'solar', 'contract', 'charging', 'heatpump', 'other'];
+const STATUSES = Object.keys(LEAD_STATUS_LABELS);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROFILE = {
   annualUse: [0, 100000], annualSolar: [0, 100000], selfUsePct: [0, 100], targetPct: [0, 100],
@@ -45,11 +46,12 @@ function phoneNumber(value) {
   return /^\+?[1-9]\d{6,14}$/.test(normalized) ? normalized : null;
 }
 
-function validateLead(body, { auth, controller, contactTexts }) {
+function validateLead(body, { auth, controller, contactTexts, housing = false }) {
   const errors = {};
   if (!isObject(body)) return { errors: { form: 'Vul het aanvraagformulier in.' } };
   const allowed = new Set(['requestId', 'formToken', 'website', 'name', 'channel', 'email', 'phone', 'postcode',
-    'topic', 'message', 'contactRequested', 'consentVersion', 'shareScenario', 'scenario', 'sourcePath']);
+    'topic', 'message', 'contactRequested', 'consentVersion', 'shareScenario', 'scenario', 'sourcePath',
+    ...(housing ? ['housing', 'contactPreference'] : [])]);
   if (Object.keys(body).some((key) => !allowed.has(key))) errors.form = 'Het formulier bevat niet-ondersteunde velden.';
   if (!UUID.test(body.requestId || '')) errors.requestId = 'Start een nieuwe aanvraag.';
   if (!auth.verifyFormToken(body.formToken)) errors.formToken = 'Het formulier is verlopen. Open het opnieuw en probeer het nog eens.';
@@ -68,9 +70,13 @@ function validateLead(body, { auth, controller, contactTexts }) {
   const message = text(body.message, 2000, { multiline: true });
   if (message === null) errors.message = 'Gebruik maximaal 2000 tekens voor je vraag.';
   if (body.contactRequested !== true) errors.contactRequested = 'Bevestig dat je persoonlijk advies aanvraagt.';
-  if (body.consentVersion !== CONSENT_VERSION) errors.consentVersion = 'Het formulier is bijgewerkt. Open het opnieuw.';
+  if (body.consentVersion !== (housing ? HOUSING_CONSENT_VERSION : CONSENT_VERSION)) errors.consentVersion = 'Het formulier is bijgewerkt. Open het opnieuw.';
   if (typeof body.shareScenario !== 'boolean') errors.shareScenario = 'Kies of je deze berekening wilt delen.';
   if (!PATHS.includes(body.sourcePath)) errors.sourcePath = 'Start de aanvraag vanuit een Zonlio-berekening.';
+  if (housing) {
+    Object.assign(errors, housingFieldErrors(body));
+    if (body.channel !== 'phone') errors.channel = 'Woningadvies bevat een door jou gevraagd telefoongesprek.';
+  }
   let scenario = null;
   if (body.shareScenario) {
     if (!isObject(body.scenario) || Object.keys(body.scenario).some((key) => key !== 'profile')
@@ -91,7 +97,10 @@ function validateLead(body, { auth, controller, contactTexts }) {
     errors,
     value: { requestId: body.requestId?.toLowerCase(), name, channel: body.channel, email, phone, postcode: postcode || '',
       topic: body.topic, message, shareScenario: body.shareScenario, scenario, sourcePath: body.sourcePath,
-      consentVersion: CONSENT_VERSION, contactText: contactTexts[body.channel], controller },
+      consentVersion: housing ? HOUSING_CONSENT_VERSION : CONSENT_VERSION, contactText: contactTexts[body.channel], controller,
+      ...(housing && !Object.keys(errors).length ? { intake: { kind: 'housing',
+        address: Object.fromEntries(['street', 'houseNumber', 'addition', 'city'].map(key => [key, (body.housing[key] || '').trim()])),
+        contactPreference: body.contactPreference } } : {}) },
   };
 }
 
@@ -119,13 +128,18 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     log({ event: 'database_unavailable' });
   }
   const auth = createAuth({ env, store, now });
-  const mail = createMail({ env, store, transport: mailTransport, logger: log });
+  const mail = createMail({ env, store, transport: mailTransport, logger: log, now });
   const router = express.Router();
   const jobs = new Set();
-  const controller = { name: env.LEAD_CONTROLLER_NAME || 'Thuisbatterij Team B.V.', email: env.LEAD_CONTROLLER_EMAIL || 'info@zonlio.nl' };
+  const configuredController = text(env.LEAD_CONTROLLER_NAME, 200);
+  const controller = { name: configuredController || 'Thuisbatterij Team B.V.', email: env.LEAD_CONTROLLER_EMAIL || 'info@zonlio.nl' };
   const contactTexts = Object.fromEntries(['email', 'phone'].map((channel) => [channel,
     `Met deze aanvraag vraag je ${controller.name} om binnen 30 dagen ${channel === 'phone' ? 'telefonisch' : 'per e-mail'} te reageren over het gekozen onderwerp. Zonlio gebruikt daarvoor je ingevulde contactgegevens en, als je dat kiest, je berekening. Je kunt je aanvraag intrekken via ${controller.email}. Dit is geen nieuwsbriefinschrijving.`]));
   const enabled = Boolean(store && (!auth.production || (env.LEAD_CONTROLLER_CONFIRMED === 'true' && auth.configured)));
+  // A separate, explicit gate: deployment or design approval never enables the new intake.
+  const housingAdviceEnabled = enabled && env.HOUSING_ADVICE_ENABLED === 'true'
+    && env.LEAD_CONTROLLER_CONFIRMED === 'true' && Boolean(configuredController);
+  const housingContactText = `Ik vraag ${controller.name} om binnen 30 dagen telefonisch te reageren over mijn gekozen woningvraag. Hiervoor worden mijn contactgegevens en woningadres gebruikt en alleen als ik dat kies mijn rekenprofiel. Mijn voorkeursmoment is geen bevestigde afspraak. Ik kan mijn verzoek intrekken via ${controller.email}. Dit is geen nieuwsbriefinschrijving of toestemming voor algemene marketing.`;
   const analyticsEnabled = Boolean(store && env.ANALYTICS_ENABLED !== 'false' && (!auth.production || auth.secretConfigured));
   const disabledReason = !store ? 'Aanvragen kunnen tijdelijk niet worden opgeslagen. Probeer het later opnieuw.'
     : !enabled ? 'Het contactformulier is nog niet geactiveerd. Je kunt contact opnemen via info@zonlio.nl.' : null;
@@ -155,7 +169,8 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
 
   router.use((_request, response, next) => { response.setHeader('Cache-Control', 'no-store'); next(); });
   router.get('/config', (_request, response) => response.json({ version: env.APP_VERSION || '0.2.0', leadEnabled: enabled,
-    disabledReason, controller, consentVersion: CONSENT_VERSION, contactTexts, analyticsEnabled, adminConfigured: auth.configured }));
+    disabledReason, controller, consentVersion: CONSENT_VERSION, contactTexts, analyticsEnabled, adminConfigured: auth.configured,
+    housingAdviceEnabled, housingConsentVersion: HOUSING_CONSENT_VERSION, housingContactText }));
   router.get('/form-token', (request, response) => {
     if (!enabled) return response.status(503).json({ error: disabledReason });
     if (!auth.limiter.take(`form:${auth.requestKey(request)}`, 120, 10 * 60000)) return response.status(429).json({ error: 'Probeer het over enkele minuten opnieuw.' });
@@ -166,6 +181,17 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     if (!enabled) return response.status(503).json({ error: disabledReason });
     if (!auth.limiter.take(`lead:${auth.requestKey(request)}`, 10, 10 * 60000)) return response.status(429).json({ error: 'Er zijn te veel pogingen. Probeer het later opnieuw.' });
     const { value, errors } = validateLead(request.body, { auth, controller, contactTexts });
+    if (Object.keys(errors).length) return response.status(422).json({ error: 'Controleer de gemarkeerde velden.', fieldErrors: errors });
+    const saved = await store.createLead(value, sha256(JSON.stringify(value)));
+    response.status(saved.duplicate ? 200 : 201).json({ ok: true, reference: saved.lead.reference, notification: 'queued', duplicate: saved.duplicate });
+    if (!saved.duplicate) backgroundMail();
+  });
+
+  router.post('/housing-leads', origin, async (request, response) => {
+    if (!housingAdviceEnabled) return response.status(503).json({ error: 'Woningadvies is nog niet vrijgegeven. Er is niets verzonden.' });
+    if (!auth.limiter.take(`lead:${auth.requestKey(request)}`, 10, 10 * 60000)) return response.status(429).json({ error: 'Er zijn te veel pogingen. Probeer het later opnieuw.' });
+    const { value, errors } = validateLead(request.body, { auth, controller, housing: true,
+      contactTexts: { phone: housingContactText } });
     if (Object.keys(errors).length) return response.status(422).json({ error: 'Controleer de gemarkeerde velden.', fieldErrors: errors });
     const saved = await store.createLead(value, sha256(JSON.stringify(value)));
     response.status(saved.duplicate ? 200 : 201).json({ ok: true, reference: saved.lead.reference, notification: 'queued', duplicate: saved.duplicate });
@@ -219,11 +245,19 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     response.json(record);
   });
   router.patch('/admin/leads/:id', administrator, csrf, async (request, response) => {
+    const fields = request.body;
+    if (!isObject(fields) || Object.keys(fields).some(key => !['status', 'note', 'followUp', 'expectedRevision'].includes(key))) return response.status(422).json({ error: 'Ongeldige opvolgvelden.' });
+    if (fields.followUp !== undefined) {
+      const errors = followUpFieldErrors(fields.followUp);
+      if (Object.keys(errors).length) return response.status(422).json({ error: 'Controleer de opvolggegevens.', fieldErrors: errors });
+    }
+    if (fields.expectedRevision !== undefined && (!Number.isSafeInteger(fields.expectedRevision) || fields.expectedRevision < 0)) return response.status(422).json({ error: 'Ongeldige dossierversie.' });
     const note = text(request.body?.note, 1000, { multiline: true });
     if (!UUID.test(request.params.id) || !STATUSES.includes(request.body?.status) || note === null) {
       return response.status(422).json({ error: 'Kies een geldige status en een notitie van maximaal 1000 tekens.' });
     }
-    const lead = await store.updateLead(request.params.id, { status: request.body.status, note, actor: request.adminSession.email });
+    const lead = await store.updateLead(request.params.id, { status: request.body.status, note, actor: request.adminSession.email,
+      followUp: fields.followUp, expectedRevision: fields.expectedRevision });
     if (!lead) return response.status(404).json({ error: 'Aanvraag niet gevonden.' });
     response.json({ ok: true, lead });
   });
@@ -242,14 +276,15 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   });
 
   router.use((error, _request, response, _next) => {
+    if (error instanceof LeadUpdateConflict) return response.status(409).json({ error: error.message });
     if (error instanceof StoreConflict || error.code === 'IDEMPOTENCY_CONFLICT') return response.status(409).json({ error: 'Deze aanvraagcode hoort bij andere gegevens. Start een nieuwe aanvraag.' });
     log({ event: 'backend_operation_failed' });
     response.status(503).json({ error: 'Dit verzoek kon niet worden verwerkt. Probeer het opnieuw.' });
   });
 
   return {
-    router, store, ready: Boolean(store),
-    health: () => ({ databaseReady: Boolean(store), adminConfigured: auth.configured, mailConfigured: mail.configured, leadEnabled: enabled }),
+    router, store, controller: Object.freeze({ ...controller }), ready: Boolean(store),
+    health: () => ({ databaseReady: Boolean(store), adminConfigured: auth.configured, mailConfigured: mail.configured, leadEnabled: enabled, housingAdviceEnabled }),
     async recordPageView(path = 'overzicht') {
       if (!store || !PATHS.includes(path)) return;
       try { await store.recordPageView(path); } catch { log({ event: 'page_count_failed' }); }
