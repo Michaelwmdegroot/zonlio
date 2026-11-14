@@ -111,7 +111,7 @@ Een beheeralert groepeert open afwijkingen in één mail met een link naar behee
 
 ### Onafhankelijke GitHub-watch voor stilgevallen cron of app
 
-[Observe Zonlio operations](../.github/workflows/operations-watch.yml) draait via GitHub Actions op minuut **17 en 47 van elk uur, UTC**, en kan via `workflow_dispatch` handmatig worden gestart. Het voert [scripts/operations-watchdog.mjs](../scripts/operations-watchdog.mjs) uit: uitsluitend een openbare `GET /api/health`, zonder secrets en zonder een maintenance-taak te starten. Eén mislukte controle krijgt na vijftien seconden een tweede poging.
+[Observe Zonlio operations](../.github/workflows/operations-watch.yml) draait via GitHub Actions op minuut **17 en 47 van elk uur, UTC**, en ook na iedere geslaagde openbare main-deploymentobservatie. De controle kan daarnaast via `workflow_dispatch` handmatig worden gestart. Het voert [scripts/operations-watchdog.mjs](../scripts/operations-watchdog.mjs) uit: uitsluitend een openbare `GET /api/health`, zonder secrets en zonder een maintenance-taak te starten. Eén mislukte controle krijgt na vijftien seconden een tweede poging.
 
 De watch controleert bereikbaarheid, de actuele databaseleesproef en, wanneer cron wordt verwacht, recente onderhoudsafronding en gereedheid van de bronadapters. Daardoor kan hij ook een geheel gestopte app of cron signaleren, terwijl de app dan zelf geen waarschuwing kan mailen. Hij inspecteert geen persoonlijke dossiers en vervangt geen inbox-/E2E-/restoreproef.
 

@@ -16,18 +16,18 @@ De technische voortgang en exacte nieuwe CI-/deploymentverwijzingen staan in [AU
 
 | Checklist | Nu gebouwd en lokaal synthetisch getoetst | Nog externe acceptatie |
 | --- | --- | --- |
-| P0-01 | Beveiligde export/correctie/wissing, revisie/tombstones, herstelregister, read-only restorechecker, extra MySQL-testgevallen | Productiebeheer, eigen dossier, persistentie en afzonderlijke Hostinger-restore |
+| P0-01 | Beveiligde export/correctie/wissing, revisie/tombstones, herstelregister, read-only restorechecker, echte MySQL 8-gate groen | Productiebeheer, eigen dossier, persistentie en afzonderlijke Hostinger-restore |
 | P0-02 / P1-01 | Duurzame suppressies, globale pauze, 100/24h-ceiling, leasecontrole, bevestigde profielkeuzes, afmelden annuleert pending opt-in | Echte account-/lead-/dagmailontvangst, headers, asynchrone bounceproces |
 | P1-02 | Woningplan vóór NAW, contextuele CTA’s en rapportage van echte historische salesmijlpalen | Werkgebied/diensten, terugbeltermijn, contactpogingen, vervanger en bevoegde medewerker |
 | P1-03 | Persistente cronruns/locks, bron-/queue-/quota-/opvolgalerts, onafhankelijk openbaar watchdogworkflow, exacte runbooks | hPanel-cron, herstartbewijs, werkelijk ontvangen storingsmelding |
-| P1-04 | Uur-/kwartiercontractcorrectie, zes statische SEO-landings, consent-correcte events, Chromium/WebKit-CI-script | Nieuwe CI/uitrol, fysieke Safari, Search Console/indexatie/CWV |
+| P1-04 | Uur-/kwartiercontractcorrectie, zes statische SEO-landings, consent-correcte events, Chromium/WebKit-CI-script | Fysieke Safari, Search Console/indexatie/CWV; PR/main-CI en 21 productieprobes zijn geslaagd |
 | P1-05 | Contracttests inclusief late ack/replay/intrekking/verval/wissing; volledige Portal-onboarding | Echte Portal-aansluiting alleen later, geen blocker zelfstandige Zonlio |
 
 Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppeling levert geen hPanel-/DB-/crontoegang. [Cron-/incidentstappen](AUTONOMOUS-OPERATIONS.md), [privacy-/restorestappen](PRIVACY-OPERATIONS.md) en [NIVO-opvolgconcept](NIVO-FOLLOWUP.md) maken de nog noodzakelijke handelingen concreet. Geen nieuwe architectuur of herhaling van bevestigde bedrijfsgegevens nodig.
 
 ## 0. Feitelijk bereikt, niet opnieuw als open punt behandelen
 
-- [x] Live Hostinger Node.js 24/Express-app, `main`, MySQL en afgeschermd beheer ingericht. Apprelease ten minste `test-ready-03-20261114` extern via twaalf read-only checks bevestigd.
+- [x] Live Hostinger Node.js 24/Express-app, `main`, MySQL en afgeschermd beheer ingericht. Apprelease `autonomy-ready-04-20261114` extern via 21 read-only checks bevestigd; [releasebewijs](AUTONOMY-04-RELEASE-2026-11-14.md).
 - [x] Premium lichte Zonlio-branding en het centrale `src/design-system.css`; designissue #4 gesloten na eigenaarreview.
 - [x] Nederlandse gepubliceerde kwartierprijzen, apparaatplanner, 2027-zonnescenario, indicatief batterijjaarplan en regionale weercontext zijn geïmplementeerd; aannames en grenzen blijven zichtbaar.
 - [x] Drie-staps woningadvies met NAW/telefoon, contactbewijs, veilige MySQL-opslag, idempotentie, status/revisie en intrekking zijn **gebouwd en CI-getest**; nog niet publiek E2E bewezen of geactiveerd.
@@ -39,7 +39,7 @@ Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppel
 - [x] **Echte losse SMTP-testmail** door eigenaar ontvangen en geopend in Apple Mail (code `F9A4DB4C`). Dit bevestigt feitelijke ontvangst voor die handmatige test, **niet** automatisch de lead-/account-/dagmailketen of SPF/DKIM/DMARC.
 - [x] CI op `42e544f53d9138c51d09f53b9937a1a157927797` en publieke smokecontrole geslaagd op 14 november. Als `main` verandert, altijd nieuw bewijs verzamelen.
 
-**Laatst bevestigde effectieve commerciële toestand:** leads, woningadvies, accounts, dagmailinschrijving, automatische dagmail en Portal-export uitgeschakeld. Hercontroleer actuele flags; gebruik geen verouderde status als nieuw feit.
+**Op 14 november 2026 om 21:49:27 UTC extern bevestigde effectieve commerciële toestand:** leads, woningadvies, accounts, dagmailinschrijving, automatische dagmail en Portal-export uitgeschakeld. Hercontroleer actuele flags; gebruik geen verouderde status als nieuw feit.
 
 ## P0 — Niet live vrijgeven zonder bewijs
 
@@ -90,10 +90,10 @@ Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppel
 
 ### P1-02 — Woningadvies, opvolging en continuïteit
 
-- [ ] Resultaat van de energiecalculator direct zichtbaar vóór vrijwillige NAW/telefoon-aanvraag.
-- [ ] Op elke relevante module één begrijpelijke CTA: dagplan, plan bewaren of NIVO-woningadvies.
+- [x] Resultaat van de energiecalculator direct zichtbaar vóór vrijwillige NAW/telefoon-aanvraag.
+- [x] Op elke relevante module één begrijpelijke CTA: dagplan, plan bewaren of NIVO-woningadvies.
 - [ ] Formulier minimaliseren en eerder bewust verstrekte invoer hergebruiken; context/bronmodule en expliciete scenario-deling registreren.
-- [ ] Alleen voor de juiste hulpvraag noodzakelijke volledige adresgegevens verzamelen; intake begrijpelijk op mobiel.
+- [x] Alleen voor de juiste hulpvraag noodzakelijke volledige adresgegevens verzamelen; intake begrijpelijk op mobiel.
 - [ ] Dossierworkflow voor Pim: toegewezen → contactpoging → bereikt → afspraak → offerte → gewonnen/verloren; verantwoordelijkheids-/actiedatum en ingetrokken/verlopen verzoeken duidelijk.
 - [ ] Alternatieve bevoegd beheerder/opvolger en storingsfallback vaststellen zodat geen leads blijven liggen wanneer Pim niet beschikbaar is.
 - [ ] Nieuwe aanvragen zichtbaar en veilig verwerkbaar in Zonlio-backoffice zonder Portal/Odoo.
@@ -110,20 +110,20 @@ Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppel
 ### P1-04 — SEO en conversie-analytics (issue #11)
 
 - [ ] Premium design system consistent houden; volledige mobiele Safari-, toetsenbord- en toegankelijkheidscontrole.
-- [ ] Interactieve persoonlijke woningplanervaring, duidelijke resultaten, eerlijk prijs-/batterijvoorbehoud en passende CTA's.
+- [x] Interactieve persoonlijke woningplanervaring, duidelijke resultaten, eerlijk prijs-/batterijvoorbehoud en passende CTA's.
 - [ ] Indexatie, robots/sitemap, canonical, metadata, structured data en Core Web Vitals verifiëren; geen privéprofielen in index.
-- [ ] Inhoudelijke NL-pagina's rond stroomprijzen, slim plannen, zonnepanelen na 1 jan 2027, terugleveren en batterijscenario's koppelen aan tools.
+- [x] Inhoudelijke NL-pagina's rond stroomprijzen, slim plannen, zonnepanelen na 1 jan 2027, terugleveren en batterijscenario's koppelen aan tools.
 - [ ] Privacyvriendelijke funnelrapportage: module → betekenisvolle berekening → **ontvangen** advies → NIVO-geaccepteerde lead → afspraak/offerte/gewonnen. Geen gokconversieratio, geen pseudo-unique users.
 - [ ] SEO-prestaties en broncampagnes zo rapporteren dat conversiekwaliteit voor NIVO zichtbaar is zonder persoonsgegevens in analytics of externe advertentiepixels.
 
 ### P1-05 — Portal-ready, maar NIET verbinden (issue #12)
 
 - [x] Zonlio contract v1 en claim/ack-code bestaan al, met stabiele dossier-ID, revisie, stop-events en Pim-label.
-- [ ] Claim/ack/retries/idempotentie/intrekking en Portal-achterstand met synthetische data verder verifiëren.
-- [ ] Het Portal-ontvangstcontract, eventversies, rotatie/rechten en toekomstige aansluitacceptatie documenteren voor Portal-team.
-- [ ] Volledige NIVO-sales blijft mogelijk via Zonlio-backoffice; geen werkelijke Portal-ontvangst claimen.
-- [ ] `PORTAL_EXPORT_ENABLED=false` houden. Alleen later bij gereedstaande Portal-ontvanger na aparte E2E-vrijgave aanzetten.
-- [ ] Geen rechtstreekse Zonlio→Odoo-connector maken.
+- [x] Claim/ack/retries/idempotentie/intrekking/verval/wissing en Portal-achterstand met synthetische SQLite- en echte MySQL-8-CI-data geverifieerd.
+- [x] Het Portal-ontvangstcontract, eventversies, rotatie/rechten en toekomstige aansluitacceptatie documenteren voor Portal-team.
+- [x] Technische zelfstandige NIVO-opvolging via Zonlio-backoffice is met synthetische browser-/MySQL-proeven bevestigd; echte productie-intake en procesvrijgave blijven P0. Geen werkelijke Portal-ontvangst claimen.
+- [x] `PORTAL_EXPORT_ENABLED=false` houden. Alleen later bij gereedstaande Portal-ontvanger na aparte E2E-vrijgave aanzetten.
+- [x] Geen rechtstreekse Zonlio→Odoo-connector maken.
 
 ## P2 — Verdere producten, géén noodzakelijke blokkade voor eerste zelfstandig draaiende leadmachine
 
@@ -135,8 +135,8 @@ Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppel
 
 ## Definitieve bedrijfsklare acceptatie (allemaal nodig)
 
-- [ ] Gebruiker kan gratis zonder registratie prijs-/plannings-/scenariofuncties gebruiken.
-- [ ] Toestemmingsvrije gratis functie blijft gescheiden van account, dagmail, marketing en belverzoek.
+- [x] Gebruiker kan gratis zonder registratie prijs-/plannings-/scenariofuncties gebruiken.
+- [x] Toestemmingsvrije gratis functie blijft gescheiden van account, dagmail, marketing en belverzoek.
 - [ ] Account + bevestiging + afmelding + profielwijziging werken in productie.
 - [ ] Eén toegestane woningadvieslead doorloopt opslaan → binnenkomst beheer → notificatie/ontvangst → Pim-opvolging, zonder duplicatie.
 - [ ] Cron+mailqueue draaien aantoonbaar door na deploy/restart, binnen providerquota.
@@ -144,7 +144,7 @@ Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppel
 - [ ] Privacyrechten, intrekking, retentie, back-up en restore naar afzonderlijke DB zijn getest.
 - [ ] Actieve commerciële flags zijn expliciet door eigenaar vrijgegeven met geanonimiseerd bewijs.
 - [ ] SEO en meetbasis werken zonder misleidende claims of privacy-onjuiste tracking.
-- [ ] Portal-contract is zelfstandig testbaar en klaar voor latere koppeling, terwijl export op off staat.
+- [x] Portal-contract is zelfstandig testbaar en klaar voor latere koppeling, terwijl export op off staat.
 - [ ] Actuele README, AGENTS, issue-status, tests, deploy- en operationeel handboek stemmen overeen; alle claims met bewijs.
 
 ## GitHub-taskmapping

@@ -48,6 +48,24 @@ Geen van deze kandidaten is naar main gemerged. De MySQL-herkansing [43644103646
 
 De browserherkansing [43644103708](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644103708) passeerde in beide engines 135 controles, inclusief 320px beheer, status, correctie en wissing. Daarna bleek dat een maillink in een al geopende Mijn Zonlio-tab alleen het fragment veranderde en geen bevestigingsscherm toonde. De app verwerkt nu ook die hash-navigatie, verwijdert het fragment en vereist nog steeds expliciete POST-bevestiging. De browsergate controleert zowel een verse maillinkpagina als dezelfde link in een bestaande tab. Definitieve CI-/deploymentresultaten volgen na waarneming.
 
+### Geaccepteerde code en werkelijke uitrol
+
+[PR #13](https://github.com/Michaelwmdegroot/zonlio/pull/13) is na groene gates gemerged naar **`2b0ddbfd5e92bc55c78b29ed196874f8a7881757`**. De geteste PR-head was `49b7c5099e971f5d6fbdb4464e59caaef21bb5e0`.
+
+| Bewijsniveau | Concreet resultaat |
+| --- | --- |
+| PR-applicatie | [43644521416](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644521416), success: 177 unit/regressietests + één expliciete lokale MySQL-skip; aparte echte MySQL 8-gate 13/13 zonder skip; syntax/build/audit groen. |
+| PR-browser | [43644521415](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644521415), Chromium **147/147**, WebKit **147/147**, geen browserfouten. Alleen synthetische lokale API/SQLite en fake SMTP. |
+| Main-applicatie | [43644743932](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644743932), success op de mergecommit. |
+| Main-browser | [43644743950](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644743950), beide engines success op de mergecommit. |
+| Werkelijke publieke productie | [43644817235](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644817235), **21/21 GET-probes geslaagd** op 14 november 2026 om **21:49:27 UTC / 22:49:27 Amsterdam**. Live marker `autonomy-ready-04-20261114`; zes landings met eigen canonical en echte HTML-inhoud; privé-API’s geweigerd. |
+| Effectieve runtime | Databaseleesproef, beheer, SMTP-configuratie en bevestigde operator passen. **Algemene intake, woningadvies, accounts, inschrijving, dagelijkse verzending en Portal-export allemaal uit.** |
+| Werkelijke DNS | Dezelfde run, 21:49:28 UTC: nul lookupfouten; MX/SPF/DMARC waargenomen; DKIM-a publiceert een sleutel, b/c niet bruikbaar. Geen ontvangen berichtauthenticatie geclaimd; details in [mail-QA](MAIL-AUTHENTICATION-QA.md). |
+
+De GitHub-bomen zijn vóór publicatie vergeleken met de lokaal geteste Git-bomen. De initiële defects zijn vóór main verholpen; geen testgrens of beveiligingspoort is daarvoor versoepeld. Het opvolgende bewijs-/runbookcommit verandert de applicatiemarker niet. De onafhankelijke operations-watch controleert voortaan ook na een geslaagde deploymentobservatie, naast het halfuurschema; dit is een read-only check en installeert geen Hostinger-cron.
+
+De 21 probes en DNS bewijzen geen productie-inbox, geplande cron, daadwerkelijke alertontvangst of Hostinger-restore. Die P0-/eigenaargates blijven open. Voor afronding van issue #12 is uitsluitend de **Zonlio-zijde** aangetoond; Portal blijft uit.
+
 ## 3. Uitvoerbare beheerprocedures
 
 - [Onderhoud, hPanel-cron, quota, pauze, alarmering en incidenten](AUTONOMOUS-OPERATIONS.md).

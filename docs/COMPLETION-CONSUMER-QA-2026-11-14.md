@@ -51,10 +51,42 @@ De homepage krijgt een bruikbare HTML-startinhoud vóór JavaScript, met een lin
 - **Lokaal, Node 24:** `npm run check` geslaagd; `npm run build` geslaagd, alleen publieke bestanden in `dist`.
 - **Lokaal, 19 gerichte tests:** `tests/frontend.test.mjs`, `tests/design-system.test.mjs` en `tests/consumer-seo.test.mjs` allemaal geslaagd. Nieuwe regressies dekken uur/kwartier-contractcorrectheid, niet-bevestigde resolutie, wintertijd, HTTP-landings, canonicals, shared styling, sitemap, noindex en het behoud van de assetallowlist.
 - **Onafhankelijke code-review:** een tweede agent controleerde de tariefmapping, publieke contractflow en consistentie met de dagplanengine; geen blokkade gevonden. De huidige marktadapter vereist kwartierdata; ondersteuning voor andere bronresoluties vraagt later expliciete contractvalidatie.
-- **Nog geen lokaal browserbewijs:** de geïnstalleerde Chromium kon in deze uitvoeromgeving niet starten door `socket() failed: Operation not permitted`. WebKit was hier niet geïnstalleerd. Dit is geen geslaagde viewport- of Safari-test.
-- **Reproduceerbare browsergate toegevoegd:** `npm run test:browser -- chromium` / `webkit` en workflow `Consumer browser acceptance`. Die gebruikt uitsluitend een lokale Express-server, in-memory SQLite, vaste synthetische prijsdata en een fake SMTP-transport. De browsertest zelf maakt geen productieverbinding en verstuurt geen echte e-mail.
+- **Lokale uitvoerbeperking:** de geïnstalleerde Chromium kon in deze uitvoeromgeving niet starten door `socket() failed: Operation not permitted`. WebKit was hier niet geïnstalleerd. Het concrete browserbewijs hieronder komt uit GitHub Actions; de lokale startpoging telt niet als geslaagde browsercontrole.
+- **Reproduceerbare browsergate uitgevoerd:** `npm run test:browser -- chromium` / `webkit` en workflow `Consumer browser acceptance`. Die gebruikt uitsluitend een lokale Express-server, in-memory SQLite, vaste synthetische prijsdata en een fake SMTP-transport. De browsertest zelf maakt geen productieverbinding en verstuurt geen echte e-mail.
 
-De browsergate is ontworpen voor breedtes 320/375/390/1440, horizontale overflow, zichtbare resultaten vóór NAW, dialog/keyboard, analytics-toestemming/intrekking, uurafrekening, één synthetische woningaanvraag en fake mailontvangst, echte lokale beheersessie/statusupdate, gecontroleerde contactcorrectie en erasure, accountlink met expliciete POST, opgeslagen profiel/dagplan, pauze en afmelding. Screenshots en geschoonde testuitkomsten worden alleen als korte CI-artifacts gepubliceerd. **Voeg pas na een geslaagde workflow de exacte run/commit toe aan releasebewijs.** WebKit op Linux is bovendien geen fysieke iPhone/Safari-acceptatie.
+### Geslaagde PR-browserrun
+
+[PR #13](https://github.com/Michaelwmdegroot/zonlio/pull/13) is gemerged naar `main`-commit `2b0ddbfd5e92bc55c78b29ed196874f8a7881757`. De voorafgaande [browserrun 43644521415](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644521415) is volledig geslaagd op PR-head `49b7c5099e971f5d6fbdb4464e59caaef21bb5e0`; GitHub voerde de controle uit op de bijbehorende PR-mergecommit `901b9756f92505bc29a56f515c789db55b21b725`.
+
+| Engine | Geslaagde controles | Browserfouten | Definitieve jobstatus | Bewijs |
+| --- | ---: | ---: | --- | --- |
+| Chromium | 147/147 | 0 | `completed / success` | [Job 132599194674](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644521415/job/132599194674), [artifact 14133487821](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644521415/artifacts/14133487821) |
+| WebKit | 147/147 | 0 | `completed / success` | [Job 132599194887](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644521415/job/132599194887), [artifact 14133373326](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644521415/artifacts/14133373326) |
+
+In beide engines zijn de zes landings, de vier gratis consumentenmodules en de account-/beheerschermen op **320, 375, 390 en 1440 px** gecontroleerd. De suite bewijst verder:
+
+- Een woningplan vóór NAW, sluiting met Escape en geen horizontale overloop van pagina's of geopende dialogen.
+- Analytics alleen na toestemming, tellen van een bewuste berekening na een eerdere weigering en stoppen na intrekking; opgeslagen eventvelden blijven beperkt tot de allowlist.
+- Een verplichte keuze voor uurafrekening en een passende planning met hele uurstarts.
+- Eén synthetische woningaanvraag in de echte test-SQLite, zonder standaard meegestuurd scenario, en twee gesimuleerde SMTP-acceptaties.
+- Een echte lokale beheersessie, opgeslagen opvolgstatus/notitie, zichtbare operationele controles, gecontroleerde contactcorrectie en verwijdering op 320 px. Na verwijdering zijn contactgegevens gewist en is het dossier gestopt.
+- Een accountlink via een nieuwe documentload én via navigatie in een al geopende Mijn Zonlio-tab. Beide routes verwijderen het tokenfragment en houden de sessie ongeauthenticeerd tot de bewuste klik; die klik verstuurt precies één verify-POST.
+- Opgeslagen profielinvoer, direct opgebouwd persoonlijk dagplan, activeren/pauzeren/afmelden, behoud van onopgeslagen profielinvoer bij een voorkeurwijziging en gesloten publieke formulieren bij uitgeschakelde features.
+
+Ook de [browserrun op de gemergede main, 43644743950](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644743950), is definitief geslaagd voor `2b0ddbfd5e92bc55c78b29ed196874f8a7881757`: [Chromium-job 132599888725](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644743950/job/132599888725) en [WebKit-job 132599888967](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644743950/job/132599888967) hebben beide `completed / success`. Dit bevestigt de browsergate opnieuw na de merge.
+
+### Gevonden en opgeloste browserregressies
+
+1. **Adminstatistieken op 320 px:** in [de eerste run 43643784955](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43643784955) bereikten beide engines 122 geslaagde controles, waarna de pagina 324 px breed bleek bij een viewport van 320 px. De centrale stylesheet gebruikt voor deze statistieken nu begrensbare gridkolommen, `min-width: 0` en onder 600 px één leesbare kolom. De overloop wordt niet verborgen en de testtolerantie is niet verruimd. De uiteindelijke browserrun slaagt ook voor ingelogd beheer en beide privacyformulieren op 320 px.
+2. **Maillink in een bestaande tab:** [de tweede run 43644103708](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644103708) passeerde de admin-/privacycontroles, maar toonde bij een nieuwe tokenhash in een al geopende Mijn Zonlio-pagina geen bevestigknop. De linkactie werd alleen bij de oorspronkelijke documentload gelezen. `src/member.mjs` verwerkt nu ook `hashchange`, verwijdert het fragment uit de adresbalk en toont de expliciete bevestiging. De geslaagde suite toetst beide geldige gebruikersroutes met dezelfde nog ongebruikte token en bewijst dat geen automatische login of dubbele bevestiging ontstaat.
+
+De browserdiagnostiek bewaart bij een fout een screenshot plus selectors en rechthoeken van overlopende elementen. Daarmee kon een concrete weergavefout worden onderscheiden van een asynchrone interactiefout. Na de statuswijziging wacht de test op de opgeslagen geschiedenisnotitie voordat hij de privacyformulieren gebruikt; alleen de reeds geselecteerde status zou geen bewijs van een volledig herladen dossier zijn.
+
+### Visuele beoordeling en grenzen van het bewijs
+
+De Chromium-screenshots van **`/kennis` en Mijn woningplan op 390 en 1440 px** zijn visueel beoordeeld uit [de eerste CI-artifacts](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43643784955/artifacts/14132703403). Het centrale Blue Glass-design, tekstomloop, kaartmarges, bedraglabels en de bereikbare sluitknop waren coherent; daar is geen aanvullend visueel knelpunt gevonden. De uiteindelijke geslaagde run publiceert dezelfde vier screenshotsoorten opnieuw, samen met `results.json`.
+
+Screenshots en geschoonde testuitkomsten staan als kort bewaarde CI-artifacts; de runlinks en concrete uitslag blijven daarom ook hier vastgelegd. Dit browserbewijs geldt voor de **geïsoleerde synthetische keten**. Fake SMTP-acceptatie is geen productie-inboxbewijs. De suite bewijst geen Hostinger-cron, herstel van een productieback-up, commerciële vrijgave of actieve Portal. WebKit op Linux is geen fysieke iPhone/Safari-acceptatie. Zoekindexatie en werkelijke Core Web Vitals blijven afzonderlijke productiecontroles.
 
 ## Geverifieerde officiële bronnen
 
@@ -71,7 +103,7 @@ Gecontroleerd op 14 november 2026. Artikeltekst verwijst bij feitelijke wijzigin
 
 ## Resterend voor volledige issue #11-acceptatie
 
-1. Exacte commit groen in applicatie-CI én browser-CI; relevante Hostinger-publicatie opnieuw controleren.
+1. De PR- en main-browsergates zijn bewezen groen. Leg daarnaast applicatie-CI en de relevante Hostinger-publicatie vast; controleer de zes landings op productie met hun eigen canonical en inhoud.
 2. Fysieke mobiele Safari-toets en beoordeling van de uitgebreide woningplanweergave door eigenaar.
 3. Search Console/indexatie en werkelijke Core Web Vitals verifiëren zodra voldoende productiegegevens/toegang bestaan. Aanwezigheid van canonical/sitemap is geen indexatiebewijs of prestatiewaardering.
 4. Productielead → NIVO-opvolging → commerciële uitkomst blijft onder de P0-gates en expliciete vrijgave. Lokale fake SMTP is geen inboxbewijs.

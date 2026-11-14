@@ -1,6 +1,6 @@
 # E6 — publieke mail-DNS en daadwerkelijk ontvangen authenticatie
 
-**Stand:** 14 november 2026. **Vrijgavestatus:** nog geen volledige e-mailauthenticatie- of afleverbevestiging. De eerder door de eigenaar ontvangen losse SMTP-testmail blijft apart bewijs; deze controle verstuurt niets.
+**Stand:** 14 november 2026, publieke DNS-waarneming om **21:49:28 UTC**. **Vrijgavestatus:** publieke records daadwerkelijk waargenomen; nog geen volledige e-mailauthenticatie- of afleverbevestiging. De eerder door de eigenaar ontvangen losse SMTP-testmail blijft apart bewijs; deze controle verstuurt niets.
 
 ## Wat de repository nu controleert
 
@@ -41,8 +41,32 @@ De bestaande workflow **Observe public Zonlio deployment** voert na de publieke 
 | --- | --- |
 | Vier lokale fixturetests | Geslaagd: TXT-segmenten, ontdubbeling/ongeldige beleidstags, veilige output, DNS-foutclassificatie, onverwachte CNAME niet volgen en lege DKIM-sleutel |
 | Werkelijke lookup vanuit ontwikkelomgeving, 14 november 21:24 UTC | Alle zes eerste queries: `ECONNREFUSED`. Geen inhoudelijk oordeel over Zonlio-DNS mogelijk. Geen records gewijzigd. |
-| Werkelijke GitHub Actions DNS-observatie van nieuwe release | Nog te beoordelen na publicatie; gebruik het rapport met tijd en workflowrun |
+| Werkelijke GitHub Actions DNS-observatie van nieuwe release | [Run 43644817235](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644817235), poging 1, `2026-11-14T21:49:28.052Z`: nul lookupfouten; MX/SPF/DMARC en drie DKIM-CNAMEs waargenomen. Bij selector `hostingermail-a` een gepubliceerde RSA-sleutel; `hostingermail-b` en `hostingermail-c` hebben checkerstatus `empty_or_unusable_key`. Zie de uitsplitsing hieronder. |
 | Authenticatie op ontvangen account-/aanvraag-/dagmail | Nog vereist |
+
+### Werkelijke publieke records op 14 november 2026
+
+Het rapport `mail-dns.json` is gelezen in de [joblog van de publieke observatie](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644817235/job/132600116256). De workflow draaide tegen `main`-commit **`2b0ddbfd5e92bc55c78b29ed196874f8a7881757`**, na de geslaagde [application-run 43644743932](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644743932), en eindigde succesvol om 21:49:33 UTC. De DNS-stap is informatief: workflow-succes betekent hier niet dat alle DNS-onderdelen een bruikbare sleutel hadden of dat een mail is geauthenticeerd.
+
+| Onderdeel | Waargenomen uitkomst uit de publieke resolver |
+| --- | --- |
+| MX voor `zonlio.nl` | `mx1.hostinger.com` met prioriteit **5**; `mx2.hostinger.com` met prioriteit **10**. |
+| SPF voor `zonlio.nl` | **Eén** SPF-record; directe `include:_spf.mail.hostinger.com` aangetroffen; `allPolicy: "~all"`; geen `redirect` aangetroffen; geen onbeperkte `+all`. Dit zijn geprojecteerde velden, geen volledige SPF-evaluatie. |
+| DMARC voor `_dmarc.zonlio.nl` | **Eén** record met `p=none`; de parser rapporteert percentage **100** en relaxed alignment (`r`) voor DKIM en SPF. Deze velden kunnen hun standaardwaarde hebben wanneer de betreffende optionele tag ontbreekt. Geen dubbele tags; geen aggregate-/failure-rapportontvanger geconfigureerd volgens de waargenomen velden. |
+| DKIM `hostingermail-a._domainkey.zonlio.nl` | CNAME naar `hostingermail-a.dkim.mail.hostinger.com`; sleutelstatus `observed`, `keyPublished:true`, type `rsa`. Geen berichtsignatuur gecontroleerd. |
+| DKIM `hostingermail-b._domainkey.zonlio.nl` | CNAME naar `hostingermail-b.dkim.mail.hostinger.com`; sleutelstatus `empty_or_unusable_key`, `keyPublished:false`. |
+| DKIM `hostingermail-c._domainkey.zonlio.nl` | CNAME naar `hostingermail-c.dkim.mail.hostinger.com`; sleutelstatus `empty_or_unusable_key`, `keyPublished:false`. |
+| Resolver-/totaalstatus | `lookupFailures:0`; `defaultHostingerRecordsObserved:false`, omdat niet bij alle drie verwachte selectors een volgens de checker bruikbare sleutel werd gevonden. |
+
+De status voor selectors `b` en `c` betekent dat de beperkte parser bij het ontvangen TXT-antwoord geen bruikbare gepubliceerde sleutel vaststelde. Het rapport bevat geen volledige sleutel of ruwe TXT-records en maakt binnen die status geen onderscheid tussen een lege sleutel en andere onbruikbare sleutelinhoud. De daadwerkelijk gebruikte selector van Zonlio-mail is nog niet uit ontvangen headers vastgesteld. Daarom bewijst deze uitslag **niet** dat de actieve ondertekening van een verzonden Zonlio-bericht faalt. Bestaande CNAMEs of providerdoelen zijn niet gewijzigd; gebruik de ontvangen `s=`-selector en bijbehorend authenticatieresultaat voor de vervolgstap.
+
+De geschoonde bestanden `mail-dns.json` en `observation.json` staan samen in [artifact `zonlio-public-observation-43644817235-1`](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644817235/artifacts/14133468286). Artifact-ID: `14133468286`; aangemaakte ZIP SHA-256: `a424af3f57509214100d5a4a63dea9a8938868026db3bd7370f9be1ddc5c12a4`. GitHub meldt vervaldatum **17 november 2026, 21:49:28 UTC**; bovenstaande beperkte resultaten blijven daarom ook in dit projectdocument vastgelegd.
+
+### Tegelijk waargenomen publieke release en gates
+
+De openbare GET-smoke in dezelfde run rapporteert op **`2026-11-14T21:49:27.916Z`** release **`autonomy-ready-04-20261114`**, gelijk aan de verwachte release. Alle 21 bevraagde openbare/beschermde routes gaven de verwachte status; beschermde account-, beheer- en privacy-API's gaven zonder sessie `401`. `databaseReady`, `adminConfigured`, `mailConfigured` en de drie operatorcontrolevelden waren `true`. Dit is publiek configuratie-/bereikbaarheidsbewijs, geen werkende SMTP-afleverproef of geautoriseerde beheersessietest.
+
+De geobserveerde gates `leadEnabled`, `housingAdviceEnabled`, `accountsEnabled`, `subscriptionsEnabled`, `dailySendEnabled` en `portalExportEnabled` waren alle **`false`**. De controle heeft geen publieke dienst ingeschakeld. `productionEndToEndVerified`, `authenticationResultsVerified`, `receivedDkimSignatureVerified`, `unsubscribeHeadersVerified` en `inboxDeliveryVerified` blijven in de rapporten **`false`**: dit bewijs is niet geleverd door deze uitsluitend lezende observatie.
 
 ## Wat nog nodig is uit een echt ontvangen bericht
 
