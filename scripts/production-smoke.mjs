@@ -56,7 +56,7 @@ export async function observeProduction({ origin = 'https://zonlio.nl', fetchImp
     ['/', 200, 'html'], ['/mijn', 200, 'html'], ['/admin', 200, 'html'],
     ['/privacy', 200, 'html'], ['/contact', 200, 'html'],
     ...Object.keys(landingPages).map(path => [path, 200, 'html']),
-    ['/src/design-system.css', 200, 'css'], ['/src/admin-readiness.mjs', 200, 'js'], ['/src/member.mjs', 200, 'js'],
+    ['/src/design-system.css', 200, 'css'], ['/src/admin-readiness.mjs', 200, 'js'], ['/src/admin.mjs', 200, 'workbench-js'], ['/src/member.mjs', 200, 'js'],
     ['/api/admin/readiness', 401, 'private'], ['/api/member/profile', 401, 'private'],
     ['/api/admin/operations', 401, 'private'], ['/api/admin/privacy/retention', 401, 'private'], ['/api/admin/privacy/recovery', 401, 'private'],
   ];
@@ -89,6 +89,7 @@ export async function observeProduction({ origin = 'https://zonlio.nl', fetchImp
         if (landingPages[path]) { evidence = landingEvidence(text, path); shapeValid = shapeValid && evidence.canonicalMatches && evidence.staticContentPresent; }
       }
       else if (kind === 'css') shapeValid = type.includes('text/css') && text.includes('--zonlio-blue');
+      else if (kind === 'workbench-js') { evidence = { workbenchPresent:text.includes('lead-queue-filter') && text.includes('focus-attention') && text.includes('state.queue') }; shapeValid = /(?:text|application)\/javascript/.test(type) && !/^\s*</.test(text) && evidence.workbenchPresent; }
       else if (kind === 'js') shapeValid = /(?:text|application)\/javascript/.test(type) && !/^\s*</.test(text);
       endpoints[path] = { status:response.status, expectedStatus, passed:response.status === expectedStatus && shapeValid, ...evidence };
     } catch (error) {
