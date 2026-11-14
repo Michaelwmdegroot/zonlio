@@ -100,7 +100,24 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   const log = typeof logger === 'function' ? logger : () => {};
   let store = null;
   try { store = await createStore({ env, now }); }
-  catch { log({ event: 'database_unavailable' }); }
+  catch (error) {
+    // Do not expose SQL, host/user/password, stack or driver message in public health.
+    // Hostinger's Runtime Logs will contain only a safe error code and missing key names.
+    const configMatch = /^DATABASE_CONFIGURATION_(DB_NAME|DB_USER|DB_PASSWORD)$/.exec(error?.message || '');
+    const safeDriverCodes = new Set([
+      'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH',
+      'ER_ACCESS_DENIED_ERROR', 'ER_DBACCESS_DENIED_ERROR', 'ER_BAD_DB_ERROR',
+      'ER_TABLEACCESS_DENIED_ERROR', 'ER_PARSE_ERROR', 'PROTOCOL_CONNECTION_LOST',
+      'ER_NOT_SUPPORTED_AUTH_MODE', 'ER_CON_COUNT_ERROR', 'ER_TOO_MANY_USER_CONNECTIONS'
+    ]);
+    const code = configMatch ? error.message : safeDriverCodes.has(error?.code) ? error.code : 'OTHER_DATABASE_ERROR';
+    const missingKeys = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']
+      .filter(key => typeof env[key] !== 'string' || !env[key].trim());
+    if (env.NODE_ENV === 'production') {
+      console.error('ZONLIO_DATABASE_UNAVAILABLE', JSON.stringify({ code, missingKeys }));
+    }
+    log({ event: 'database_unavailable' });
+  }
   const auth = createAuth({ env, store, now });
   const mail = createMail({ env, store, transport: mailTransport, logger: log });
   const router = express.Router();
