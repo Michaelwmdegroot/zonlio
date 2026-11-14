@@ -1,3 +1,4 @@
+import {readinessMarkup} from './admin-readiness.mjs';
 import {api} from './api.mjs';
 import {compareSelfUse,batteryScenario} from './domain.mjs';
 import {LEAD_STATUS_LABELS, CONTACT_PREFERENCES, CLOSED_STATUSES} from './advice-schema.mjs';
@@ -11,7 +12,7 @@ const date=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('nl
 const statuses=LEAD_STATUS_LABELS;
 const topics={battery:'Thuisbatterij',solar:'Eigen zonnestroom',contract:'Stroomcontract',charging:'Laadvoorziening',heatpump:'Verwarming',other:'Andere vraag'};
 const notifications={queued:'In wachtrij',pending:'In wachtrij',sent:'Verzonden via SMTP',failed:'Melding mislukt',cancelled:'Verzending gestopt'};
-const state={session:null,config:null,days:30,status:'',stats:null,statsState:'loading',leads:[],leadsState:'loading',nextCursor:null,selected:null,selectedRevision:0,refreshing:false};
+const state={session:null,config:null,days:30,status:'',stats:null,statsState:'loading',leads:[],leadsState:'loading',nextCursor:null,selected:null,selectedRevision:0,refreshing:false,readiness:null,readinessError:false};
 let returnFocus=null;
 
 function toast(message){const target=$('#admin-toast');target.textContent=message;target.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>target.classList.remove('show'),4500);}
@@ -19,7 +20,7 @@ function setDialog(content){const dialog=$('#admin-dialog');if(!dialog.open)retu
 function closeDialog(){const dialog=$('#admin-dialog');dialog.close();state.selected=null;if(returnFocus?.isConnected)returnFocus.focus();}
 async function adminApi(path,options={}) {
   try{return await api('/api/admin'+path,{...options,headers:{...(options.method&&options.method!=='GET'?{'X-CSRF-Token':state.session?.csrfToken||''}:{}),...options.headers}});}
-  catch(error){if(error.status===401){state.session=null;state.stats=null;state.leads=[];if($('#admin-dialog').open)closeDialog();renderLogin('Je sessie is verlopen. Log opnieuw in.');}throw error;}
+  catch(error){if(error.status===401){state.session=null;state.stats=null;state.leads=[];state.readiness=null;if($('#admin-dialog').open)closeDialog();renderLogin('Je sessie is verlopen. Log opnieuw in.');}throw error;}
 }
 function renderLogin(message='') {
   $('#admin-account').innerHTML='';
@@ -37,10 +38,12 @@ function dailyMarkup() {
 }
 function render() {
   if(!state.session?.authenticated)return;
+  const readinessOpen=location.hash==='#testen'||Boolean($('#testen')?.open);
   const totals=state.stats?.totals||{};const mail=state.stats?.mail;const loading=state.statsState==='loading';
   $('#admin-account').innerHTML=`<span class="admin-email">${esc(state.session.email)}</span><button class="button button-secondary" data-admin-action="logout">Uitloggen</button>`;
   $('#admin-main').innerHTML=`<div class="admin-intro"><div><div class="eyebrow">VAN INZICHT NAAR CONTACT</div><h1>Aandacht voor elke aanvraag.</h1><p>Ontvangst, opvolging en de gezondheid van Zonlio op één plek.</p></div><div class="admin-period"><label for="admin-days">Overzichtsperiode</label><select id="admin-days">${[7,30,90].map(d=>`<option value="${d}" ${state.days===d?'selected':''}>Afgelopen ${d} dagen</option>`).join('')}</select><button class="admin-refresh" data-admin-action="refresh" ${state.refreshing?'disabled':''}>${state.refreshing?'Verversen…':'Verversen ↻'}</button></div></div>
     ${state.statsState==='error'?`<div class="form-message error" role="alert">Het cijferoverzicht kon niet worden geladen. Aanvraaggegevens hieronder kunnen wel beschikbaar zijn. <button class="button-text" data-admin-action="refresh">Opnieuw proberen</button></div>`:''}
+    ${readinessMarkup(state.readiness,{open:readinessOpen,loading:state.refreshing,error:state.readinessError})}
     <div class="admin-stats">${statCard('Ontvangen aanvragen',totals.leads,loading?'Wordt opgehaald':`Binnen ${state.days} dagen`)}${statCard('Nieuw',totals.new,'Nog te starten opvolging','blue')}${statCard('Bereikt',totals.contacted,'Huidige status; niet alleen een belpoging')}${statCard('Gewonnen',totals.won,'Door het team gemarkeerd','good')}</div>
     <section class="panel admin-panel workload-panel" aria-labelledby="workload-title"><div class="panel-head"><div><h2 id="workload-title">Wat vraagt nu aandacht?</h2><p>Alle open dossiers, onafhankelijk van de instroomperiode hierboven.</p></div></div><div class="workload-grid"><div><strong>${number(state.stats?.workload?.due)}</strong><span>Acties vandaag of achterstallig</span></div><div><strong>${number(state.stats?.workload?.unassigned)}</strong><span>Nog toe te wijzen</span></div><div><strong>${number(state.stats?.workload?.expired)}</strong><span>Contacttermijn verstreken</span></div></div><p class="admin-mini">De eerste twee aantallen bevatten alleen geldige contactverzoeken. Een verstreken verzoek geeft geen grond voor een nieuw verkoopgesprek.</p></section>
     <div class="admin-middle"><section class="panel admin-panel"><div class="panel-head"><div><h2>Ontvangen aanvragen</h2><p>De dagelijkse instroom in deze periode.</p></div><span class="badge">${state.days} dagen</span></div>${dailyMarkup()}</section><section class="panel admin-panel system-card"><div class="panel-head"><h2>Verbindingen</h2><span class="system-dot ${mail?.configured?'ready':''}"></span></div><div class="health-row"><div><strong>E-mailmeldingen</strong><small>${mail?.lastSuccessAt?'Laatste verzending '+date(mail.lastSuccessAt):'Nog geen succesvolle verzending geregistreerd'}</small></div><span class="health-badge ${mail?.configured?'good':''}">${mail?mail.configured?'Ingesteld':'Niet ingesteld':'Onbekend'}</span></div><div class="mail-counts"><span><strong>${number(mail?.pending)}</strong> in wachtrij</span><span><strong>${number(mail?.failed)}</strong> mislukt</span></div>${state.stats?.sources?healthRow('Stroomprijzen',state.stats.sources.prices)+healthRow('Weersverwachting',state.stats.sources.weather):''}<div class="health-row"><div><strong>Woningadvies</strong><small>${esc(state.config?.controller?.name||'Ontvanger niet beschikbaar')}</small></div><span class="health-badge ${state.config?.housingAdviceEnabled?'good':''}">${state.config?.housingAdviceEnabled?'Vrijgegeven':'Niet geactiveerd'}</span></div><div class="admin-system-actions"><button class="button button-secondary" data-admin-action="verify-mail" ${!mail?.configured?'disabled':''}>Verbinding controleren</button><button class="button button-secondary" data-admin-action="retry-mail" ${!mail?.configured?'disabled':''}>Wachtrij verwerken</button></div><p class="admin-mini">Een opgeslagen aanvraag blijft zichtbaar, ook wanneer de e-mailmelding nog niet is verzonden.</p></section></div>
@@ -67,8 +70,10 @@ async function loadLeads({append=false}={}) {
 }
 async function refresh() {
   if(state.refreshing)return;state.refreshing=true;state.statsState='loading';render();
-  const results=await Promise.allSettled([adminApi(`/stats?days=${state.days}`),loadLeads()]);
+  const results=await Promise.allSettled([adminApi(`/stats?days=${state.days}`),loadLeads(),adminApi('/readiness'),api('/api/config')]);
   if(results[0].status==='fulfilled'){state.stats=results[0].value;state.statsState='ready';}else{state.stats=null;state.statsState='error';}
+  state.readiness=results[2].status==='fulfilled'?results[2].value:null;state.readinessError=results[2].status==='rejected';
+  if(results[3].status==='fulfilled')state.config=results[3].value;
   state.refreshing=false;render();
 }
 const profileLabels={annualUse:['Jaarverbruik','kWh'],annualSolar:['Zonneopwek','kWh'],selfUsePct:['Eigen verbruik nu','%'],targetPct:['Eigen verbruik scenario','%'],importRate:['Afnametarief','€/kWh'],exportRate:['Bruto terugleververgoeding','€/kWh'],exportFee:['Variabele terugleverkosten','€/kWh'],investment:['Batterijinvestering','€'],extraSolarStored:['Zonne-input opslag','kWh/jaar'],roundTripEfficiency:['Retourrendement',''],annualCosts:['Overige jaarkosten','€'],lifeYears:['Vergelijkingsperiode','jaar']};
@@ -112,7 +117,7 @@ document.addEventListener('click',async event=>{
   if(action==='retry-mail')mailAction('retry',button);
   if(action==='logout') {
     button.disabled=true;
-    try{await adminApi('/logout',{method:'POST',body:{}});state.session=null;state.stats=null;state.leads=[];if($('#admin-dialog').open)closeDialog();renderLogin();}
+    try{await adminApi('/logout',{method:'POST',body:{}});state.session=null;state.stats=null;state.leads=[];state.readiness=null;if($('#admin-dialog').open)closeDialog();renderLogin();}
     catch(error){toast(error.message);button.disabled=false;}
   }
 });

@@ -239,3 +239,37 @@ test('opvolging weigert extra velden, ongeldige datum en actie na contacttermijn
   }
   assert.equal((await f.api(path,{...session,method:'PATCH',body:{status:'new',followUp:{owner:'Test',nextAction:'Bel',nextActionOn:'2027-01-01'}}})).status,409);
 });
+
+test('readiness is admin-only, read-only and distinguishes operator keys without leaking values', async t => {
+  const fixture=await setup(t,{env:{LEAD_CONTROLLER_NAME:'old private company',LEAD_CONTROLLER_EMAIL:'private@example.invalid',SMTP_PASSWORD:'smtp-private-value',SMTP_DAILY_LIMIT:'0'}});
+  if(!fixture)return;
+  assert.equal((await fixture.api('/admin/readiness')).status,401);
+  const admin=await fixture.login();
+  const report=await fixture.api('/admin/readiness',admin);
+  assert.equal(report.status,200);
+  assert.equal(report.body.checks.find(c=>c.id==='database').status,'pass');
+  assert.equal(report.body.checks.find(c=>c.id==='operator_name').status,'blocked');
+  assert.equal(report.body.checks.find(c=>c.id==='operator_contact').status,'blocked');
+  assert.equal(report.body.productionEndToEndVerified,false);
+  assert.doesNotMatch(JSON.stringify(report.body),/old private company|private@example|smtp-private-value|fixture-secret|fixture-cron/);
+  assert.equal((await fixture.api('/config')).body.housingAdviceEnabled,false);
+  assert.equal((await fixture.backend.store.stats(7)).totals.leads,0);
+  assert.equal((await fixture.backend.store.members.stats()).verifiedEmails,0);
+  assert.equal(fixture.backend.health().operatorNameMatches,false);
+  assert.equal(fixture.backend.health().operatorContactMatches,false);
+});
+
+test('SMTP verification evidence is safe and rate limited; it never sends a test message', async t => {
+  let verified=0,sent=0;
+  const fixture=await setup(t,{mailTransport:{verify:async()=>{verified++;return true;},sendMail:async()=>{sent++;return {};}}});
+  if(!fixture)return;
+  const admin=await fixture.login();
+  assert.equal((await fixture.api('/admin/mail/verify',{method:'POST',cookie:admin.cookie,body:{}})).status,403);
+  const result=await fixture.api('/admin/mail/verify',{...admin,method:'POST',body:{}});
+  assert.equal(result.status,200);assert.equal(result.body.ok,true);
+  const report=(await fixture.api('/admin/readiness',admin)).body;
+  assert.equal(report.smtpCheck.ok,true);assert.equal(report.operationalChecks.find(c=>c.id==='delivery').status,'unverified');
+  for(let n=1;n<6;n++)assert.equal((await fixture.api('/admin/mail/verify',{...admin,method:'POST',body:{}})).status,200);
+  assert.equal((await fixture.api('/admin/mail/verify',{...admin,method:'POST',body:{}})).status,429);
+  assert.equal(verified,6);assert.equal(sent,0);
+});

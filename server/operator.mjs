@@ -9,6 +9,6 @@ const canonical = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/
 export function operatorConfiguration(env = process.env) {
   const matches = !env.LEAD_CONTROLLER_NAME || canonical(env.LEAD_CONTROLLER_NAME) === canonical(OPERATOR.name);
   const contactMatches = !env.LEAD_CONTROLLER_EMAIL || env.LEAD_CONTROLLER_EMAIL.trim().toLowerCase() === OPERATOR.email;
-  return { controller: OPERATOR, matches: matches && contactMatches,
+  return { controller: OPERATOR, nameMatches: matches, contactMatches, matches: matches && contactMatches,
     confirmed: env.LEAD_CONTROLLER_CONFIRMED === 'true' && matches && contactMatches };
 }

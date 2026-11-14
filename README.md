@@ -1,5 +1,11 @@
 # Zonlio
 
+## Actuele testrelease — 14 november 2026
+
+Applicatiemarker `test-ready-03-20261114`. Open `/admin#testen` voor de afgeschermde runtimecontrole, afzonderlijke functieschakelaars en SMTP-verificatie zonder verzending. Volg [de eigenaarstest](docs/TEST-RELEASE-2026-11-14.md). De bevestigde ontvanger is **NIVO Groep Holland BV**. De oudere pilotnotities hieronder bewaren de geschiedenis.
+
+`npm run test:live` leest alleen publieke routes en controleert ook dat privéprofielen en beheerdiagnostiek zonder sessie worden geweigerd. Dit is geen SMTP-/inbox-/cron-/restoretest en activeert niets. Een automatische publieke observatie volgt op geslaagde main-CI.
+
 ## Groei-iteratie 2 — accounts en dagplan
 
 De eigenaar heeft NIVO Groep Holland BV (KvK 95227768) als exploitant bevestigd. Nieuw: `/mijn`, eenmalige accountlinks, afzonderlijke dagplaninschrijving met bevestiging, profiel/voorkeuren/export/verwijderen, begrensde dagmailqueue en de **Zonlio-zijde** van Portal claim/ack. Portal voert later de Odoo-overdracht uit. Nieuwe functies blijven standaard uit; geen productie-inbox-/cron-/Portalbewijs uit lokale tests afleiden. Lees [actuele implementatie en vrijgave](docs/GROWTH-02-2026-11-14.md) en [Portal-contract](docs/PORTAL-CONTRACT-v1.md). Oudere statussecties hieronder zijn historisch.

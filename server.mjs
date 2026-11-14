@@ -5,12 +5,12 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createBackend } from './server/backend.mjs';
+import { RELEASE_ID } from './server/release.mjs';
 import { createMarketService } from './server/market.mjs';
 import { createWeatherService, WEATHER_REGIONS } from './server/weather.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const VERSION = '1.0.0';
-const RELEASE_ID = 'growth-02-20261114';
 const POLICY = ["default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data:", "font-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "frame-ancestors 'none'", "form-action 'self'"].join('; ');
 
 /** Render only the explicit public-company marker; never evaluate a template. */

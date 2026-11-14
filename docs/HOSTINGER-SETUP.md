@@ -4,6 +4,8 @@ Laatst bijgewerkt: 14 november 2026. > **Statusupdate 14 november 2026:** De oor
 
 De onderstaande stappen zijn **historische installatie-instructies** voor een eerste Hostinger Web App en niet opnieuw uitvoeren voor de bestaande live Zonlio-site.
 
+Voor de bestaande app is de actuele testvolgorde: [Testrelease 03](TEST-RELEASE-2026-11-14.md). De historische installatieprocedure hieronder is geen reden om een tweede site te maken.
+
 ## 1. Kies de juiste Hostinger-integratie
 
 Voor Zonlio is de voorkeursroute **Websites → Create site → Web App → Import your Git repository**. Koppel de **bestaande** repository `Michaelwmdegroot/zonlio` en selecteer `main`.
@@ -64,7 +66,8 @@ ADMIN_EMAIL=info@zonlio.nl
 ADMIN_PASSWORD_HASH=[geheime scrypt-hash uit admin:create]
 SESSION_SECRET=[eigen willekeurig geheim, 32+ tekens]
 CRON_SECRET=[ander willekeurig geheim, 32+ tekens]
-LEAD_CONTROLLER_NAME=Thuisbatterij Team B.V.
+LEAD_CONTROLLER_NAME=NIVO Groep Holland BV
+LEAD_CONTROLLER_EMAIL=info@zonlio.nl
 LEAD_CONTROLLER_CONFIRMED=false
 LEAD_NOTIFY_TO=info@zonlio.nl
 SMTP_HOST=smtp.hostinger.com

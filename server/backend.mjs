@@ -1,3 +1,4 @@
+import { buildReadiness } from './readiness.mjs';
 import { createPortalRouter } from './portal.mjs';
 import { OPERATOR, operatorConfiguration } from './operator.mjs';
 import { createMemberService } from './members.mjs';
@@ -236,6 +237,17 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     response.setHeader('Set-Cookie', await auth.logout(request.adminSession));
     response.status(204).end();
   });
+  let lastSmtpCheck = null;
+  router.get('/admin/readiness', administrator, async (_request, response) => {
+    let memberStats = null;
+    try { memberStats = await store?.members?.stats(); } catch { /* Report failure without exposing SQL. */ }
+    const memberConfig = memberService.config();
+    response.json(buildReadiness({ env, now, smtpCheck: lastSmtpCheck, maintenance: memberStats?.maintenance,
+      runtime: { databaseReady: Boolean(memberStats), adminConfigured: auth.configured, mailConfigured: mail.configured,
+        housingAdviceEnabled, accountsEnabled: memberConfig.accountsEnabled,
+        subscriptionsEnabled: memberConfig.subscriptionsEnabled, dailySendEnabled: memberConfig.dailySendEnabled,
+        portalEnabled: portal.enabled } }));
+  });
   router.get('/admin/stats', administrator, async (request, response) => {
     const days = Number(request.query.days || 30);
     if (![7, 30, 90].includes(days)) return response.status(422).json({ error: 'Kies 7, 30 of 90 dagen.' });
@@ -272,7 +284,12 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     if (!lead) return response.status(404).json({ error: 'Aanvraag niet gevonden.' });
     response.json({ ok: true, lead });
   });
-  router.post('/admin/mail/verify', administrator, csrf, async (_request, response) => response.json(await mail.verify()));
+  router.post('/admin/mail/verify', administrator, csrf, async (request, response) => {
+    if (!auth.limiter.take(`smtp-verify:${request.adminSession.email}`, 6, 60000)) return response.status(429).json({ error: 'Wacht even voor een volgende verbindingscontrole.' });
+    const result = await mail.verify();
+    lastSmtpCheck = { ok: result.ok === true, at: new Date(now()).toISOString() };
+    response.json(result);
+  });
   router.post('/admin/mail/retry', administrator, csrf, async (request, response) => {
     if (!auth.limiter.take(`mail:${request.adminSession.email}`, 6, 60000)) return response.status(429).json({ error: 'Wacht even voor een volgende verzendpoging.' });
     if (!mail.configured) return response.status(503).json({ error: 'E-mailverzending is nog niet geconfigureerd.', configured: false });
@@ -295,7 +312,7 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
 
   return {
     router, store, memberService, controller: Object.freeze({ ...controller }), ready: Boolean(store),
-    health: () => ({ databaseReady: Boolean(store), adminConfigured: auth.configured, mailConfigured: mail.configured, leadEnabled: enabled, housingAdviceEnabled, operatorConfigured:operator.matches, portalExportEnabled:portal.enabled, memberAccountsEnabled:memberService.config().accountsEnabled, daymailSignupEnabled:memberService.config().subscriptionsEnabled, daymailSendEnabled:memberService.config().dailySendEnabled }),
+    health: () => ({ databaseReady: Boolean(store), adminConfigured: auth.configured, mailConfigured: mail.configured, leadEnabled: enabled, housingAdviceEnabled, operatorConfigured:operator.matches, operatorNameMatches:operator.nameMatches, operatorContactMatches:operator.contactMatches, portalExportEnabled:portal.enabled, memberAccountsEnabled:memberService.config().accountsEnabled, daymailSignupEnabled:memberService.config().subscriptionsEnabled, daymailSendEnabled:memberService.config().dailySendEnabled }),
     async recordPageView(path = 'overzicht') {
       if (!store || !PATHS.includes(path)) return;
       try { await store.recordPageView(path); } catch { log({ event: 'page_count_failed' }); }

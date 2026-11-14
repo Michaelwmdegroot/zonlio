@@ -31,7 +31,7 @@ test('an unconfigured direct start defaults to production and cannot create loca
   const health=await call(target,'/api/health');
   assert.equal(health.status,200);
   assert.match(health.headers['strict-transport-security'],/max-age/);
-  assert.deepEqual(JSON.parse(health.text).services,{databaseReady:false,adminConfigured:false,mailConfigured:false,leadEnabled:false,housingAdviceEnabled:false,operatorConfigured:true,portalExportEnabled:false,memberAccountsEnabled:false,daymailSignupEnabled:false,daymailSendEnabled:false});
+  assert.deepEqual(JSON.parse(health.text).services,{databaseReady:false,adminConfigured:false,mailConfigured:false,leadEnabled:false,housingAdviceEnabled:false,operatorConfigured:true,operatorNameMatches:true,operatorContactMatches:true,portalExportEnabled:false,memberAccountsEnabled:false,daymailSignupEnabled:false,daymailSendEnabled:false});
   assert.equal(JSON.parse((await call(target,'/api/config')).text).leadEnabled,false);
   assert.equal((await call(target,'/__qa/viewport')).status,404);
   assert.deepEqual(await readdir(directory),[]);
