@@ -1,3 +1,5 @@
+> **ACTUELE OVERDRACHT (14 november 2026)** — Het bedrijfsklaar maken van Zonlio staat in [de masterchecklist](docs/COMPLETION-MASTER-CHECKLIST-2026-11-14.md), [resterende eigenaarsacties](docs/OWNER-INPUT-AND-GATES-2026-11-14.md) en [GPT-6 Pro-startprompt](docs/START-GPT6PRO-COMPLETION-2026-11-14.md). Oudere pilot-/teststatus hieronder is historisch. Losse SMTP-testmail is door de eigenaar ontvangen, maar de volledige account/lead-/dagmailketens en cron/restore zijn nog niet E2E afgetekend. Portal blijft uit.
+
 # Zonlio
 
 ## Actuele testrelease — 14 november 2026

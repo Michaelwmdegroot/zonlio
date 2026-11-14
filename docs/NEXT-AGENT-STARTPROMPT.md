@@ -1,3 +1,5 @@
+> **HISTORISCHE STARTPROMPT.** Gebruik voor de nieuwe afrondingsagent de actuele [GPT-6 Pro-completion prompt](START-GPT6PRO-COMPLETION-2026-11-14.md), [masterchecklist](COMPLETION-MASTER-CHECKLIST-2026-11-14.md) en [eigenaarsacties](OWNER-INPUT-AND-GATES-2026-11-14.md). De rest hieronder is het eerdere overdrachtsmoment.
+
 # Startprompt — volgende ChatGPT-agent voor Zonlio
 
 Kopieer deze prompt naar de nieuwe ChatGPT-chat.

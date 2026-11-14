@@ -1,3 +1,5 @@
+**LEES EERST DE ACTUELE BEDRIJFSKLARE OVERDRACHT:** `docs/COMPLETION-MASTER-CHECKLIST-2026-11-14.md`, `docs/OWNER-INPUT-AND-GATES-2026-11-14.md` en `docs/START-GPT6PRO-COMPLETION-2026-11-14.md`. Oude pilotstartprompt is historisch. Werk bewezen afgeronde mailtest/bedrijfsgegevens niet opnieuw uit; behoud afzonderlijke publieke activeringspoorten en Portal-uitgeschakeld.
+
 # Zonlio — afspraken voor verdere ontwikkeling
 
 Lees eerst `docs/PILOT-HANDOFF-2026-11-14.md` en de actuele QA-/release-notities. Bestaande Node 24 / Express / MySQL-architectuur behouden. `main` kan automatisch naar Hostinger deployen. De eigenaar heeft op 14 november 2026 expliciet gevraagd op `main` verder te bouwen. Werk vanaf de actuele main-commit, test een afgebakende wijziging vóór publicatie, gebruik een atomische commit en nooit een force-push. Een ontwikkelopdracht is geen toestemming voor commerciële activering.
