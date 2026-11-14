@@ -4,7 +4,7 @@
 
 ## Vast werkproces
 
-1. Bekijk nieuwe en achterstallige aanvragen in `/admin`. Controleer hulpvraag, bronmodule, contactbewijs/voorkeur en resterend contactvenster. Een account of dagmailabonnement is nooit een belopdracht.
+1. Gebruik standaard **Nu opvolgen** in `/admin` om geldige, nieuwe of achterstallige contactverzoeken te zien. Kies **Alle aanvragen** voor gesloten en historische dossiers. Bekijk nieuwe en achterstallige aanvragen in `/admin`. Controleer hulpvraag, bronmodule, contactbewijs/voorkeur en resterend contactvenster. Een account of dagmailabonnement is nooit een belopdracht.
 2. Controleer noodzakelijke gegevens en passendheid voor de gevraagde dienst. Houd het dossier bij Pim of de door NIVO aangewezen bevoegde vervanger. Noteer één volgende actie en datum; geen onnodige privégegevens in vrije notities.
 3. Leg iedere daadwerkelijke contactpoging vast. Markeer pas `contacted` wanneer de aanvrager werkelijk is bereikt en `qualified` wanneer behoefte, werkgebied en haalbare dienstverlening zijn beoordeeld. Een onbereikbaar adres is geen gekwalificeerde lead.
 4. Gebruik `appointment`, `quoted`, `won` of `lost` uitsluitend voor werkelijk bereikte momenten. De rapportage bewaart historische mijlpalen; overslaande statuskeuzes leveren geen verzonnen eerdere stappen op. Commerciële omzet/bedragen worden niet ingevuld als de huidige app die niet registreert.
@@ -33,3 +33,11 @@ De analytics bevatten geen NAW en geen externe advertentiepixels. Een vrijwillig
 Nieuwe aanvragen blijven in MySQL bestaan bij SMTP-uitval. Gebruik de werkvoorraad als operationele bron; de notificatiemail is een hulpmiddel. Bij technische achterstand, quota of bronuitval volgt de bevoegde beheerder [AUTONOMOUS-OPERATIONS.md](AUTONOMOUS-OPERATIONS.md). Bij privacy- of toegangsfout: stop betrokken verwerking, bewaar alleen noodzakelijke incidentmetadata en volg de bevoegde NIVO-procedure.
 
 Dit SOP-concept sluit E4 pas nadat de ontbrekende keuzes en feitelijke toegang/ontvangst zijn bevestigd. Een codecommit benoemt geen nieuwe medewerker en verleent geen gegevensrechten.
+
+## Automatische werkvoorraad — release 05
+
+Nieuwe adviesaanvragen voor **NIVO Groep Holland BV** krijgen bij opslag atomisch het opvolglabel `Pim`, een **interne beoordelingstaak** en de actuele Amsterdamse kalenderdatum als actiedatum. Status blijft `new`; er wordt geen contactpoging, kwalificatie, afspraak of verzendresultaat verzonnen. Een idempotente herhaling maakt geen tweede taak. Oudere dossiers en rechten worden niet herschreven.
+
+In de beveiligde backoffice gebruikt de standaardweergave `GET /api/admin/leads?queue=attention`. Alleen actuele vrijwillige contactverzoeken komen in deze werkvoorraad: nieuwe dossiers, niet toegewezen of niet ingeplande dossiers en acties met een datum tot en met vandaag. Het filter ondersteunt status en paginering; afgesloten, ingetrokken of verlopen contact valt buiten de actielijst, maar blijft volgens bewaarbeleid in **Alle aanvragen**. Een actie die voor de toekomst is ingepland, komt pas op de geplande datum terug. De samenvatting `workload.attention` telt een passend dossier één keer, onafhankelijk van de ingestelde statistiekperiode.
+
+Dit is uitsluitend een interne takenlijst voor de bestaande bevoegde beheerder. Geen nieuwe personeelsaccounts, automatische verkoopmail, belactie of publieke toezegging. De productie- en privacygates voor echte aanvragen blijven onafhankelijk; Portal-export blijft uit.
