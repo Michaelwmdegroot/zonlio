@@ -125,10 +125,17 @@ if (direct) {
   const rawPort=options.port??process.env.PORT??'3000';const port=Number(rawPort);
   if(!/^\d+$/.test(rawPort)||port>65535)throw new Error('PORT moet een geldig poortnummer zijn.');
   const host=options.host??process.env.HOST??'0.0.0.0';
+  // Print diagnostic *codes* and source frames, not raw error messages that could include credentials.
+  function startupDiagnostic(stage,error) {
+    const code=typeof error?.code==='string'&&/^[A-Z][A-Z0-9_]{1,60}$/.test(error.code)?error.code:'UNSPECIFIED';
+    const type=error instanceof Error?error.name:'UnknownError';
+    const frame=String(error?.stack||'').split('\\n').slice(1,3).map(s=>s.trim()).join(' | ').slice(0,300);
+    console.error('ZONLIO_STARTUP_DIAGNOSTIC',JSON.stringify({stage,type,code,frame}));
+  }
   try {
     const server=await createAppServer({qaMode:options.qaMode});
-    server.on('error',()=>{console.error('Zonlio kon niet starten. Controleer de hostingconfiguratie.');process.exitCode=1;});
+    server.on('error',error=>{startupDiagnostic('listen',error);process.exitCode=1;});
     server.listen(port,host,()=>console.log(`Zonlio ${VERSION} luistert op poort ${server.address().port}.`));
     for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{server.close(()=>process.exit(0));setTimeout(()=>process.exit(1),10_000).unref();});
-  } catch {console.error('Zonlio kon niet initialiseren. Controleer de serverconfiguratie.');process.exitCode=1;}
+  } catch(error) {startupDiagnostic('initialize',error);process.exitCode=1;}
 }
