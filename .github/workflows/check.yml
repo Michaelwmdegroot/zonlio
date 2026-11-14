@@ -43,3 +43,19 @@ jobs:
           DB_PASSWORD: zonlio-ci-test-only
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
+      - name: Package verified source and offline test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/zonlio-verified
+          git archive --format=tar HEAD -o /tmp/zonlio-verified/source.tar
+          tar -czf /tmp/zonlio-verified/dependencies.tar.gz node_modules
+          cp "$(command -v node)" /tmp/zonlio-verified/node
+          git rev-parse HEAD > /tmp/zonlio-verified/COMMIT
+          cd /tmp/zonlio-verified
+          sha256sum source.tar dependencies.tar.gz node > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zonlio-verified-${{ github.sha }}
+          path: /tmp/zonlio-verified/
+          retention-days: 1
