@@ -1,11 +1,23 @@
-const origin=process.env.APP_URL||'https://zonlio.nl';
-const secret=process.env.CRON_SECRET;
-if(!secret||secret.length<32){console.error('CRON_SECRET ontbreekt of is te kort.');process.exit(1);}
-const url=new URL('/api/tasks/maintenance',origin);
-if(url.protocol!=='https:'&&!(process.env.NODE_ENV!=='production'&&['localhost','127.0.0.1'].includes(url.hostname))){console.error('Een beveiligde APP_URL is vereist.');process.exit(1);}
-try{
-  const response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(45000),redirect:'error'});
-  if(!response.ok)throw new Error('maintenance_failed');
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+
+export async function runMaintenance({env=process.env,fetchImpl=fetch}={}) {
+  const secret=env.CRON_SECRET;
+  if(typeof secret!=='string'||secret.length<32||secret===env.SESSION_SECRET)throw new Error('CRON_CONFIGURATION');
+  const origin=new URL(env.PUBLIC_URL||env.APP_URL||'https://zonlio.nl');
+  const local=env.NODE_ENV!=='production'&&origin.protocol==='http:'&&['localhost','127.0.0.1'].includes(origin.hostname);
+  if(origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash||(!local&&origin.origin!=='https://zonlio.nl'))throw new Error('CRON_ORIGIN');
+  if(env.PUBLIC_URL&&env.APP_URL&&new URL(env.PUBLIC_URL).origin!==new URL(env.APP_URL).origin)throw new Error('CRON_ORIGIN');
+  const url=new URL('/api/tasks/maintenance',origin);
+  const response=await fetchImpl(url,{method:'POST',headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(55000),redirect:'error'});
+  if(!response.ok)throw new Error('MAINTENANCE_FAILED');
   const data=await response.json();
-  console.log(JSON.stringify({ok:true,processed:data.processed??null,sent:data.sent??null,failed:data.failed??null}));
-}catch{console.error('Onderhoudstaak niet voltooid. Controleer in de backoffice de mailwachtrij en hostingconfiguratie.');process.exitCode=1;}
+  if(data.status==='busy'&&response.status===202)return {ok:true,status:'busy'};
+  if(data.maintenanceCompleted!==true)throw new Error('MAINTENANCE_NOT_CONFIRMED');
+  const count=value=>Number.isSafeInteger(value)&&value>=0?value:0;
+  return {ok:true,status:'completed',processed:count(data.processed),sent:count(data.sent),failed:count(data.failed),memberAccepted:count(data.members?.sent?.accepted),expiredContactRequests:count(data.contacts?.expired)};
+}
+if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href) {
+  try {console.log(JSON.stringify(await runMaintenance()));}
+  catch {console.error('Onderhoud niet bevestigd. Controleer veilige configuratie, cronuitvoer en Zonlio-beheer; geen geheimen delen.');process.exitCode=1;}
+}

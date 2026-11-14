@@ -105,7 +105,7 @@ test('SMTP-fout verliest geen lead; onderhoud hervat uitsluitend fake-mail', asy
       messages.push(message); return { accepted: [message.to], rejected: [] };
     },
   };
-  const fixture = await setup(t, { mailTransport: transport });
+  const fixture = await setup(t, { env:{SMTP_DAILY_LIMIT:'50'}, mailTransport: transport });
   if (!fixture) return;
   const { api, login, application, backend, advance, env } = fixture;
   const session = await login();
@@ -323,4 +323,54 @@ test('SMTP-afleverproef weigert ontbrekend budget en verhult verzendfouten', asy
   assert.equal(readiness.deliveryTest.accepted,false);
   assert.doesNotMatch(JSON.stringify(readiness),/owner-fixture@example.invalid/);
   assert.doesNotMatch(JSON.stringify(failed.logs),/owner-fixture@example.invalid/);
+});
+
+test('accounts and housing have independent approval gates while general advice remains closed',async t=>{
+  const f=await setup(t,{env:{LEAD_ENABLED:'false',LEAD_CONTROLLER_CONFIRMED:'true',MEMBER_ACCOUNTS_ENABLED:'true',HOUSING_ADVICE_ENABLED:'true',SMTP_DAILY_LIMIT:'50'},mailTransport:{sendMail:async m=>({accepted:[m.to]})}});
+  const config=(await f.api('/config')).body;assert.equal(config.leadEnabled,false);assert.equal(config.housingAdviceEnabled,true);assert.equal(config.members.accountsEnabled,true);
+  assert.equal((await f.api('/form-token')).status,200);assert.equal((await f.api('/leads',{method:'POST',body:await f.application()})).status,503);
+  const onlyAccounts=await setup(t,{env:{LEAD_ENABLED:'false',LEAD_CONTROLLER_CONFIRMED:'true',MEMBER_ACCOUNTS_ENABLED:'true',SMTP_DAILY_LIMIT:'50'},mailTransport:{sendMail:async m=>({accepted:[m.to]})}});
+  assert.equal((await onlyAccounts.api('/form-token')).status,503);assert.equal((await onlyAccounts.api('/config')).body.members.accountsEnabled,true);
+});
+
+test('privacy endpoints enforce session, CSRF, verified request, correct reference and revision without reviving contact',async t=>{
+  const f=await setup(t);await f.api('/leads',{method:'POST',body:await f.application()});
+  const auth=await f.login();const lead=(await f.api('/admin/leads',auth)).body.leads[0];const base='/admin/leads/'+lead.id;
+  for(const path of [base+'/export','/admin/privacy/recovery','/admin/privacy/retention','/admin/operations'])assert.equal((await f.api(path)).status,401);
+  const correction={expectedRevision:0,fields:{name:'Corrected synthetic'},requestVerified:true};
+  assert.equal((await f.api(base+'/contact',{cookie:auth.cookie,method:'PATCH',body:correction})).status,403);
+  assert.equal((await f.api(base+'/contact',{...auth,method:'PATCH',body:{...correction,requestVerified:false}})).status,422);
+  assert.equal((await f.api(base+'/contact',{...auth,method:'PATCH',body:correction})).status,200);
+  assert.equal((await f.api(base+'/contact',{...auth,method:'PATCH',body:correction})).status,409);
+  const exported=(await f.api(base+'/export',auth)).body;assert.equal(exported.lead.name,'Corrected synthetic');assert.doesNotMatch(JSON.stringify(exported),/payload_hash|claim_token|id_hash/);
+  const erase={expectedRevision:1,requestVerified:true,confirm:'ERASE_LEAD_PERSONAL_DATA',reference:'wrong'};
+  assert.equal((await f.api(base+'/erase',{...auth,method:'POST',body:erase})).status,422);
+  assert.equal((await f.api(base+'/erase',{...auth,method:'POST',body:{...erase,reference:lead.reference}})).status,200);
+  assert.equal((await f.api(base,{...auth,method:'PATCH',body:{status:'new',note:'Must not restore',expectedRevision:2}})).status,409);
+  const erased=(await f.api(base+'/export',auth)).body;assert.equal(erased.lead.email,'');assert.equal(erased.lead.contact.requested,false);assert.ok(erased.privacy.erasedAt);
+  assert.doesNotMatch(JSON.stringify(f.logs),/Corrected synthetic|Test Aanvrager|test@example/);
+  assert.equal((await f.api('/admin/privacy/retention',auth)).body.dryRun,true);
+});
+
+test('suppression and global mail pause are checked before a delivery test consumes the shared budget',async t=>{
+  for(const paused of [false,true]) {
+    let sent=0;const f=await setup(t,{env:{SMTP_DAILY_LIMIT:'50',MAIL_SEND_PAUSED:String(paused)},mailTransport:{sendMail:async()=>{sent++;return {accepted:['unused']};}}});
+    const auth=await f.login();
+    const suppression={email:'test-stop@example.invalid',reason:'complaint',confirmed:true};
+    assert.equal((await f.api('/admin/mail/suppress',{cookie:auth.cookie,method:'POST',body:suppression})).status,403);
+    assert.equal((await f.api('/admin/mail/suppress',{...auth,method:'POST',body:suppression})).status,200);
+    assert.equal((await f.api('/admin/mail/test-delivery',{...auth,method:'POST',body:{recipient:paused?'different@example.invalid':suppression.email,confirmed:true}})).status,409);
+    assert.equal(sent,0);assert.equal((await f.backend.store.members.stats()).reservedAttempts24h,0);
+  }
+});
+
+test('maintenance heartbeat is persistent evidence and refuses to claim success after losing its lease',async t=>{
+  const f=await setup(t,{env:{OPS_EXPECT_CRON:'true'}});
+  assert.equal((await f.backend.operationalHealth()).cronStatus,'never_run');
+  const tick=()=>f.api('/tasks/maintenance',{method:'POST',authorization:`Bearer ${f.env.CRON_SECRET}`});
+  assert.equal((await tick()).body.maintenanceCompleted,true);f.advance(300000);assert.equal((await tick()).body.maintenanceCompleted,true);
+  assert.equal((await f.backend.store.operations.summary()).successfulTicks24h,2);assert.equal((await f.backend.operationalHealth()).cronStatus,'current');
+  f.advance(16*60000);assert.equal((await f.backend.operationalHealth()).cronStatus,'overdue');
+  f.backend.store.operations.finishRun=async()=>false;
+  const lost=await tick();assert.equal(lost.status,503);assert.equal(lost.body.maintenanceCompleted,false);
 });
