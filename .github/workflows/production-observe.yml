@@ -1,0 +1,70 @@
+name: Observe public Zonlio deployment
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/production-observe.yml]
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read public health and feature state only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/zonlio-public-observation
+          python3 - <<'PY'
+          import datetime, json, pathlib, time, urllib.request
+          report = {'checkedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'scope': 'Unauthenticated GET only. Not an SMTP, inbox, login, lead, cron, restore or Portal test.', 'endpoints': {}}
+          paths = ['/api/health', '/api/config']
+          for path in paths:
+              observation = {'accessible': False}
+              for attempt in range(3):
+                  try:
+                      request = urllib.request.Request('https://zonlio.nl' + path, headers={'User-Agent': 'Zonlio-Deployment-Monitor/1.0', 'Accept': 'application/json', 'Cache-Control': 'no-cache'})
+                      with urllib.request.urlopen(request, timeout=12) as response:
+                          raw = response.read(65537)
+                          if len(raw) > 65536:
+                              raise ValueError('Response too large')
+                          data = json.loads(raw)
+                          if not isinstance(data, dict):
+                              raise ValueError('Unexpected response shape')
+                          observation = {'accessible': True, 'httpStatus': response.status}
+                          if path == '/api/health':
+                              observation['ok'] = data.get('ok')
+                              observation['version'] = data.get('version')
+                              observation['releaseId'] = data.get('releaseId')
+                              services = data.get('services') or {}
+                              observation['services'] = {k: services.get(k) for k in ['databaseReady', 'adminConfigured', 'mailConfigured', 'leadEnabled', 'housingAdviceEnabled'] if type(services.get(k)) is bool}
+                          else:
+                              for k in ['leadEnabled', 'housingAdviceEnabled', 'operatorConfigured', 'adminConfigured']:
+                                  if type(data.get(k)) is bool:
+                                      observation[k] = data[k]
+                              controller = data.get('controller') or {}
+                              observation['controllerName'] = str(controller.get('name', ''))[:100]
+                              members = data.get('members') or {}
+                              observation['memberBooleanFlags'] = {k: v for k, v in members.items() if type(v) is bool}
+                      break
+                  except Exception as error:
+                      observation = {'accessible': False, 'errorType': type(error).__name__}
+                      if attempt < 2:
+                          time.sleep(5)
+              report['endpoints'][path] = observation
+          health = report['endpoints'].get('/api/health', {})
+          report['expectedApplicationReleaseObserved'] = health.get('releaseId') == 'growth-02-20261114'
+          report['productionEndToEndVerified'] = False
+          target = pathlib.Path('/tmp/zonlio-public-observation/observation.json')
+          target.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+          print(target.read_text())
+          if not report['expectedApplicationReleaseObserved']:
+              print('::warning::The expected public release is not verified. This observation workflow is not a production acceptance gate.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zonlio-public-observation
+          path: /tmp/zonlio-public-observation/
+          retention-days: 3
