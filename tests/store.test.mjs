@@ -94,3 +94,35 @@ test('productie gebruikt nooit een lokale database als MySQL ontbreekt', async (
   await assert.rejects(() => createStore({ env: { NODE_ENV: 'production', SQLITE_PATH: path } }), /DATABASE_CONFIGURATION/);
   await assert.rejects(() => access(path));
 });
+
+test('NIVO requests start one Pim review and attention queue follows consent and due dates',async t=>{
+  const f=await fixture(t);
+  const input=lead({controller:{name:'NIVO Groep Holland BV',email:'info@zonlio.nl'}});
+  const first=await f.store.createLead(input,'nivo-dedup-test');
+  assert.equal((await f.store.createLead(input,'nivo-dedup-test')).duplicate,true);
+  assert.equal(first.lead.followUp.owner,'Pim');
+  assert.equal(first.lead.followUp.nextActionOn,'2026-11-14');
+  assert.match(first.lead.followUp.nextAction,/beoordelen/);
+  assert.equal(first.lead.status,'new','Planning review does not imply reaching the person');
+  assert.equal((await f.store.stats(7)).workload.attention,1);
+  assert.equal((await f.store.listLeads({queue:'attention'})).leads.length,1);
+  assert.equal((await f.store.listLeads({queue:'attention',status:'won'})).leads.length,0);
+  await f.store.updateLead(first.lead.id,{status:'assigned',actor:'qa',expectedRevision:0,
+    followUp:{owner:'Pim',nextAction:'Controleer later',nextActionOn:'2026-11-16'}});
+  assert.equal((await f.store.listLeads({queue:'attention'})).leads.length,0);
+  f.advance(2*86400000);
+  assert.equal((await f.store.listLeads({queue:'attention'})).leads.length,1);
+  await f.store.updateLead(first.lead.id,{status:'withdrawn',actor:'qa',expectedRevision:1});
+  assert.equal((await f.store.listLeads({queue:'attention'})).leads.length,0);
+  assert.equal((await f.store.stats(7)).workload.attention,0);
+  assert.equal((await f.store.listLeads()).leads.length,1);
+});
+
+test('expired open request is excluded from action queue even if next review date is overdue',async t=>{
+  const f=await fixture(t);
+  const input=lead({requestId:randomUUID(),controller:{name:'NIVO Groep Holland BV',email:'info@zonlio.nl'}});
+  await f.store.createLead(input,'expiring-lead');
+  f.advance(31*86400000);
+  assert.equal((await f.store.listLeads({queue:'attention'})).leads.length,0);
+  assert.equal((await f.store.listLeads()).leads.length,1);
+});
