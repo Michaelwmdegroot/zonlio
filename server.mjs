@@ -148,7 +148,10 @@ if (direct) {
   listener.listen(port,host,()=>console.log('Zonlio HTTP-poort geopend; applicatie wordt geïnitialiseerd.'));
   const initialize=createAppServer({qaMode:options.qaMode}).then(server=>{
     application=server;
-    console.log(`Zonlio ${VERSION} luistert op poort ${listener.address().port}.`);
+    const announceReady=()=>console.log(`Zonlio ${VERSION} luistert op poort ${listener.address().port}.`);
+    // A fast initialization can complete before server.listen() has bound a port.
+    // Never access address().port until the listening event has fired.
+    if(listener.listening)announceReady();else listener.once('listening',announceReady);
   }).catch(error=>startupDiagnostic('initialize',error));
   for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{
     const watchdog=setTimeout(()=>process.exit(1),10_000);watchdog.unref();
