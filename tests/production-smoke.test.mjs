@@ -17,6 +17,7 @@ function stub({release=RELEASE_ID,leak=false,brokenAsset=false,fetchFail=false,r
     if(path==='/api/health')return Response.json({ok:true,releaseId:release,services:{databaseReady:true,operatorNameMatches:false,operatorContactMatches:true,secret:'never-output'}});
     if(path==='/api/config')return Response.json({leadEnabled:false,operatorConfigured:false,members:{accountsEnabled:false,subscriptionsEnabled:false,dailySendEnabled:false,secret:'never-output'}});
     if(path.endsWith('.css'))return new Response('--zonlio-blue: blue',{status:brokenAsset?404:200,headers:{'Content-Type':'text/css'}});
+    if(path==='/src/admin.mjs')return new Response("export const workbench='lead-queue-filter focus-attention state.queue';",{headers:{'Content-Type':'text/javascript'}});
     if(path.endsWith('.mjs'))return new Response('export const ok=true;',{headers:{'Content-Type':'text/javascript'}});
     return htmlResponse(landingHtml[path]||'<title>Mijn Zonlio</title><link href="/src/design-system.css">');
   }};
@@ -25,7 +26,7 @@ test('public observation reads only known GET routes and distinguishes closed fe
   const f=stub();const report=await observeProduction(f);
   assert.equal(report.publicChecksPassed,true);assert.equal(report.productionEndToEndVerified,false);
   assert.equal(report.configuration.accountsEnabled,false);assert.equal(report.configuration.operatorNameMatches,false);
-  assert.equal(f.calls.length,21);assert.ok(f.calls.every(call=>call.options.method==='GET'&&call.options.redirect==='manual'&&!call.options.body&&!Object.keys(call.options.headers).some(key=>/^(?:authorization|cookie)$/i.test(key))));
+  assert.equal(f.calls.length,22);assert.ok(f.calls.every(call=>call.options.method==='GET'&&call.options.redirect==='manual'&&!call.options.body&&!Object.keys(call.options.headers).some(key=>/^(?:authorization|cookie)$/i.test(key))));
   assert.equal(report.expectedRelease,RELEASE_ID);
   for(const path of Object.keys(landingHtml))assert.deepEqual(report.endpoints[path],{status:200,expectedStatus:200,passed:true,canonicalMatches:true,staticContentPresent:true});
   for(const path of privatePaths)assert.equal(report.endpoints[path].passed,true,path);
@@ -77,4 +78,12 @@ test('observer does not follow redirects or print arbitrary raw responses',async
 test('oversized bodies fail closed with a bounded diagnostic',async()=>{
   const report=await observeProduction({fetchImpl:async()=>new Response('x'.repeat(270000),{headers:{'Content-Type':'application/json'}})});
   assert.equal(report.publicChecksPassed,false);assert.equal(report.endpoints['/api/health'].error,'RESPONSE_TOO_LARGE');
+});
+
+test('live workbench script must contain queue controls before declaring release ready',async()=>{
+  const noWorkbench=new Response('export const unrelated=true;',{headers:{'Content-Type':'text/javascript'}});
+  const result=await observeProduction(stub({responses:{'/src/admin.mjs':noWorkbench}}));
+  assert.equal(result.publicChecksPassed,false);
+  assert.equal(result.endpoints['/src/admin.mjs'].workbenchPresent,false);
+  assert.equal(result.endpoints['/src/admin.mjs'].passed,false);
 });
