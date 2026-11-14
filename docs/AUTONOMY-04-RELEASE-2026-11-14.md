@@ -44,7 +44,9 @@ De directe netwerkroute uit de werkruimte kon Zonlio niet betrouwbaar ophalen. D
 - [MySQL-run 43643784952](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43643784952): alle elf voorafgaande subtests slaagden; de restore-inspectie weigerde het prepared protocol voor een transactiestuurstatement (`ER_UNSUPPORTED_PS`). De statische read-only/snapshotstatements gebruiken nu `query()`; parameterqueries blijven prepared.
 - [Browser-run 43643784955](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43643784955): Chromium en WebKit passeerden 122 controles en vonden daarna een echte 324px-beheerlayout op een viewport van 320px. De centrale stylesheet geeft operationele statistieken op mobiel één leesbare kolom; geen overflow verbergen of testgrens versoepelen. Foutdiagnostiek bewaart voortaan ook een screenshot.
 
-Deze kandidaat is niet naar main gemerged. De gecorrigeerde kandidaat moet de volledige gates opnieuw doorlopen. Definitieve CI-/deploymentresultaten volgen na waarneming.
+Geen van deze kandidaten is naar main gemerged. De MySQL-herkansing [43644103646](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644103646) op head `eb7598d6a032c37daefc3732a16749f6a24af360` slaagde: 12 echte MySQL-subtests plus de oudertest, **13/13 pass, 0 skips**; unit/regressies 177 pass + de aparte MySQL-skip, build en audit groen.
+
+De browserherkansing [43644103708](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43644103708) passeerde in beide engines 135 controles, inclusief 320px beheer, status, correctie en wissing. Daarna bleek dat een maillink in een al geopende Mijn Zonlio-tab alleen het fragment veranderde en geen bevestigingsscherm toonde. De app verwerkt nu ook die hash-navigatie, verwijdert het fragment en vereist nog steeds expliciete POST-bevestiging. De browsergate controleert zowel een verse maillinkpagina als dezelfde link in een bestaande tab. Definitieve CI-/deploymentresultaten volgen na waarneming.
 
 ## 3. Uitvoerbare beheerprocedures
 

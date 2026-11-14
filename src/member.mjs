@@ -5,9 +5,16 @@ const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={config:{},session:{authenticated:false},data:null,plan:null,day:localHour(Date.now())>=18?'tomorrow':'today'};
 // Read tokens from a fragment, then remove them from the address/history. Never send them to analytics.
-const fragment=new URLSearchParams(location.hash.slice(1));
-const action=fragment.has('bevestig')?{kind:'verify',token:fragment.get('bevestig')}:fragment.has('afmelden')?{kind:'unsubscribe',token:fragment.get('afmelden')}:null;
-if(action)history.replaceState(null,'',location.pathname);
+function readLinkAction(){
+  const fragment=new URLSearchParams(location.hash.slice(1));
+  const next=fragment.has('bevestig')?{kind:'verify',token:fragment.get('bevestig')}:fragment.has('afmelden')?{kind:'unsubscribe',token:fragment.get('afmelden')}:null;
+  if(next)history.replaceState(null,'',location.pathname);
+  return next;
+}
+let action=readLinkAction();
+// Pasting an email link into an existing tab can be a same-document navigation.
+// It must show the same explicit confirmation, without consuming the link.
+window.addEventListener('hashchange',()=>{const next=readLinkAction();if(next){action=next;render();}});
 function notice(message,error=false){const el=$('#member-notice');el.className=error?'form-message error member-notice':'form-message member-notice';el.textContent=message;}
 const field=(id,label,value='',attrs='')=>`<div class="field"><label for="${id}">${label}</label><input id="${id}" name="${id}" value="${esc(value)}" ${attrs}></div>`;
 function edition(selected='evening'){return `<div class="field"><label for="edition">Wanneer wil je je dagplan?</label><select id="edition" name="edition"><option value="evening" ${selected==='evening'?'selected':''}>Avond · vanaf 18:00 voor morgen</option><option value="morning" ${selected==='morning'?'selected':''}>Ochtend · vanaf 07:00 voor vandaag</option></select></div>`;}
@@ -77,7 +84,7 @@ document.addEventListener('click',async event=>{
   try{
     if(b.dataset.memberDay){state.day=b.dataset.memberDay;state.plan=await request('/plan?day='+state.day);$('#member-plan').innerHTML=planMarkup();document.querySelectorAll('[data-member-day]').forEach(el=>{el.classList.toggle('selected',el.dataset.memberDay===state.day);el.setAttribute('aria-pressed',String(el.dataset.memberDay===state.day));});return;}
     switch(b.dataset.memberAction){
-      case 'confirm-token':{const result=await request('/'+action.kind,{method:'POST',body:{token:action.token}});action.token='';action.done=true;await refresh();notice(result.message);break;}
+      case 'confirm-token':{const pending=action;const result=await request('/'+pending.kind,{method:'POST',body:{token:pending.token}});pending.token='';pending.done=true;await refresh();if(action===pending)notice(result.message);break;}
       case 'logout':await request('/logout',{method:'POST',body:{}});await refresh();notice('Je bent uitgelogd.');break;
       case 'delete':if(window.confirm('Je Mijn Zonlio-profiel, dagmail en sessies verwijderen? Dit verwijdert geen afzonderlijke woningadviesaanvraag.')){const result=await request('/profile',{method:'DELETE',body:{confirm:'DELETE_MY_ZONLIO'}});await refresh();notice(result.message);}break;
       case 'import-local':{
