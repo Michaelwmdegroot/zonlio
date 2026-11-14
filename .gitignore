@@ -16,3 +16,5 @@ dist-build-*/
 *.pem
 *.key
 .hostinger/
+
+.artifacts/

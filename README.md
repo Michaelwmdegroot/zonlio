@@ -10,6 +10,18 @@ Eigenaar van de repository: [Michaelwmdegroot](https://github.com/Michaelwmdegro
 
 **Lees eerst de actuele [pilotoverdracht](docs/PILOT-HANDOFF-2026-11-14.md) en [startprompt voor de volgende agent](docs/NEXT-AGENT-STARTPROMPT.md).** Historische [QA](docs/QA.md) en [release](docs/RELEASE.md) documentatie is aangevuld om deze stand te onderscheiden van de aanvankelijke bouwfase.
 
+## Zonlio 2.0 — designreview
+
+De eigenaar heeft de visuele basis vóór de resterende productie-issues geprioriteerd. De implementatie op `feat/zonlio-design-system` gebruikt het aangeleverde Zonlio-logo en de lichte Apple/Mac-referentie. `src/design-system.css` is de gedeelde visuele laag voor alle bestaande schermen.
+
+- [Ontwerpafspraken en tokens](docs/DESIGN-SYSTEM.md)
+- [Componentkaart](docs/design-system.html)
+- [Design-QA en beperkingen](docs/DESIGN-QA-2026-11-14.md)
+
+Maak een offline, interactieve ontwerpversie met `node scripts/design-preview.mjs`. De bestanden verschijnen in `.artifacts/design/`. Ze gebruiken **uitsluitend herkenbare voorbeeldgegevens**; er worden geen aanvragen of e-mails verstuurd. Deze previewadapter wordt niet naar `dist` gekopieerd.
+
+Een designreview is geen productie- of commerciële vrijgave. De P0-issues blijven open en leadactivatie vereist afzonderlijk bewijs en eigenaarakkoord.
+
 ## Wat de applicatie doet
 
 | Onderdeel | Gedrag |
