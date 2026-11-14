@@ -273,3 +273,54 @@ test('SMTP verification evidence is safe and rate limited; it never sends a test
   assert.equal((await fixture.api('/admin/mail/verify',{...admin,method:'POST',body:{}})).status,429);
   assert.equal(verified,6);assert.equal(sent,0);
 });
+
+test('echte SMTP-proef is admin-only, CSRF-beveiligd, expliciet en begrensd zonder lead of abonnement', async t => {
+  const messages=[];
+  const transport={ async sendMail(message) { messages.push(message); return { accepted: [message.to], rejected: [] }; } };
+  const f=await setup(t,{env:{SMTP_DAILY_LIMIT:'50',LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV'},mailTransport:transport});
+  if(!f)return;
+  const body={recipient:'delivery-fixture@example.invalid',confirmed:true};
+  assert.equal((await f.api('/admin/mail/test-delivery',{method:'POST',body})).status,401);
+  const session=await f.login();
+  assert.equal((await f.api('/admin/mail/test-delivery',{method:'POST',body,cookie:session.cookie})).status,403);
+  assert.equal((await f.api('/admin/mail/test-delivery',{...session,method:'POST',body:{...body,confirmed:false}})).status,422);
+  assert.equal((await f.api('/admin/mail/test-delivery',{...session,method:'POST',body:{...body,recipient:'invalid'}})).status,422);
+  assert.equal((await f.api('/admin/mail/test-delivery',{...session,method:'POST',body:{...body,arbitrary:'extra'}})).status,422);
+  assert.equal(messages.length,0);
+  const accepted=await f.api('/admin/mail/test-delivery',{...session,method:'POST',body});
+  assert.equal(accepted.status,200);assert.equal(accepted.body.smtpAccepted,true);
+  assert.match(accepted.body.reference,/^[A-F0-9]{8}$/);
+  assert.equal(messages.length,1);
+  assert.equal(messages[0].to,body.recipient);
+  assert.match(messages[0].text,/SMTP|testmail/i);
+  assert.equal((await f.api('/admin/stats',session)).body.totals.leads,0);
+  assert.equal((await f.backend.store.members.stats()).members,undefined); // No member created by testmail.
+  const readiness=(await f.api('/admin/readiness',session)).body;
+  assert.equal(readiness.deliveryTest.accepted,true);
+  assert.doesNotMatch(JSON.stringify(readiness),/delivery-fixture@example.invalid/);
+  assert.doesNotMatch(JSON.stringify(f.logs),/delivery-fixture@example.invalid/);
+  assert.equal((await f.api('/admin/mail/test-delivery',{...session,method:'POST',body})).status,200);
+  assert.equal((await f.api('/admin/mail/test-delivery',{...session,method:'POST',body})).status,429);
+  assert.equal(messages.length,2);
+});
+
+test('SMTP-afleverproef weigert ontbrekend budget en verhult verzendfouten', async t => {
+  const messages=[];
+  const transport={async sendMail(message){ messages.push(message);throw Object.assign(new Error('private SMTP server error'),{code:'ECONNECTION'});} };
+  const f=await setup(t,{env:{SMTP_DAILY_LIMIT:'0'},mailTransport:transport});
+  if(!f)return;
+  const session=await f.login();
+  const body={recipient:'owner-fixture@example.invalid',confirmed:true};
+  assert.equal((await f.api('/admin/mail/test-delivery',{...session,method:'POST',body})).status,503);
+  assert.equal(messages.length,0);
+  const failed=await setup(t,{env:{SMTP_DAILY_LIMIT:'10'},mailTransport:transport});
+  if(!failed)return;
+  const auth=await failed.login();
+  const response=await failed.api('/admin/mail/test-delivery',{...auth,method:'POST',body});
+  assert.equal(response.status,502);assert.equal(response.body.code,'ECONNECTION');
+  assert.doesNotMatch(JSON.stringify(response),/private SMTP|owner-fixture/);
+  const readiness=(await failed.api('/admin/readiness',auth)).body;
+  assert.equal(readiness.deliveryTest.accepted,false);
+  assert.doesNotMatch(JSON.stringify(readiness),/owner-fixture@example.invalid/);
+  assert.doesNotMatch(JSON.stringify(failed.logs),/owner-fixture@example.invalid/);
+});

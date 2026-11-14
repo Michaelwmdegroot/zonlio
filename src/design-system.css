@@ -560,3 +560,14 @@ dialog::backdrop { background: rgb(20 42 76 / 24%); backdrop-filter: blur(7px); 
 .readiness-manual p{color:var(--z-text-secondary);margin-top:4px}
 .readiness-actions{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 12px}
 @media(max-width:600px){.readiness-panel summary{align-items:flex-start;flex-direction:column}.readiness-checks,.readiness-features{grid-template-columns:minmax(0,1fr)}.readiness-item>div{flex-wrap:wrap}.readiness-actions>*{width:100%}}
+
+/* Manual, admin-only real SMTP inbox delivery test. Never an activation form. */
+.admin-testmail{display:grid;gap:12px;max-width:560px;margin:18px 0;padding:20px;border:1px solid var(--line);border-radius:var(--z-radius-card,20px);background:var(--zonlio-surface)}
+.admin-testmail h4{margin:0;color:var(--zonlio-navy);font-size:16px}
+.admin-testmail p{margin:0;color:var(--z-text-secondary);font-size:13px;line-height:1.6}
+.admin-testmail .field{margin:0}
+.admin-testmail .field input{width:100%;font-size:16px;min-height:46px}
+.admin-testmail .testmail-confirm{display:flex;align-items:flex-start;gap:10px;color:var(--z-text-secondary);font-size:13px;line-height:1.6}
+.admin-testmail .testmail-confirm input{margin-top:3px;flex:none;accent-color:var(--zonlio-blue)}
+.admin-testmail button{justify-self:start}
+@media(max-width:600px){.admin-testmail{padding:16px}.admin-testmail button{width:100%}}

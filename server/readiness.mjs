@@ -2,7 +2,7 @@ import { OPERATOR, operatorConfiguration } from './operator.mjs';
 import { RELEASE_ID } from './release.mjs';
 
 /** Read-only diagnosis of this running process. Never return raw environment values. */
-export function buildReadiness({ env = {}, runtime = {}, now = Date.now, smtpCheck = null, maintenance = null } = {}) {
+export function buildReadiness({ env = {}, runtime = {}, now = Date.now, smtpCheck = null, deliveryTest = null, maintenance = null } = {}) {
   const operator = operatorConfiguration(env);
   const production = env.NODE_ENV === 'production';
   const quota = Number(env.SMTP_DAILY_LIMIT || 0);
@@ -61,10 +61,12 @@ export function buildReadiness({ env = {}, runtime = {}, now = Date.now, smtpChe
   // Only controlled scalar evidence, never raw provider errors, credentials or task payloads.
   const smtpEvidence = smtpCheck && typeof smtpCheck.ok === 'boolean' && Number.isFinite(Date.parse(smtpCheck.at))
     ? { ok: smtpCheck.ok, at: smtpCheck.at } : null;
+  const deliveredTestEvidence = deliveryTest && typeof deliveryTest.accepted === 'boolean' && Number.isFinite(Date.parse(deliveryTest.at))
+    ? { accepted: deliveryTest.accepted, at: deliveryTest.at } : null;
   const maintenanceAt = Number.isFinite(Date.parse(maintenance?.at)) ? maintenance.at : null;
   return { releaseId: RELEASE_ID, checkedAt: new Date(now()).toISOString(), environment: production ? 'production' : 'test-or-development',
     scope: 'Configuratie van het draaiende proces en een databaseleesproef. Geen automatische livegang of volledige ketentest.',
-    checks, features, operationalChecks, smtpCheck: smtpEvidence, maintenanceAt,
+    checks, features, operationalChecks, smtpCheck: smtpEvidence, deliveryTest: deliveredTestEvidence, maintenanceAt,
     productionEndToEndVerified: false,
     note: 'Opslaan in hPanel verandert een draaiend proces niet aantoonbaar: controleer na herstart de runtime opnieuw. Bewuste uit-schakelaars zijn geen softwarefout.' };
 }
