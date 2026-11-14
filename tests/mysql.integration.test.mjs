@@ -329,8 +329,10 @@ test('echte MySQL: schema, transacties, idempotentie en beheerstatistieken', {
     // not a Hostinger backup restore or independent production evidence.
     const connection = await pool.getConnection();
     try {
-      await connection.execute('SET TRANSACTION READ ONLY');
-      await connection.execute('START TRANSACTION WITH CONSISTENT SNAPSHOT');
+      // Transaction control uses MySQL's text protocol; these static statements
+      // are not supported by the prepared statement protocol on MySQL 8.
+      await connection.query('SET TRANSACTION READ ONLY');
+      await connection.query('START TRANSACTION WITH CONSISTENT SNAPSHOT');
       const checked = await inspectRestore(connection, manifest);
       assert.equal(checked.schemaReady, true, JSON.stringify(checked));
       assert.equal(checked.privacyReconciled, true, JSON.stringify(checked));

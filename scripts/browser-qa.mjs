@@ -26,15 +26,18 @@ const backend=await createBackend({env,now:()=>now,mailTransport,market,weather,
 const originalEvent=backend.store.recordEvent.bind(backend.store);backend.store.recordEvent=async data=>{events.push(data);return originalEvent(data);};
 const server=await createAppServer({preferDist:false,env,backend,market,weather});
 await new Promise((done,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',done);});
-let browser;
+let browser,activePage;
 function check(ok,message,details){checks.push({pass:Boolean(ok),message,...(details?{details}:{})});if(!ok)throw new Error(message+' '+JSON.stringify(details));}
 async function overflow(page,label){
  const dimensions=await page.evaluate(()=>({viewport:innerWidth,html:document.documentElement.scrollWidth,body:document.body.scrollWidth,
   dialogs:[...document.querySelectorAll('dialog[open]')].map(el=>{const box=el.getBoundingClientRect();return {id:el.id,left:box.left,right:box.right,client:el.clientWidth,scroll:el.scrollWidth};}),
-  offenders:[...document.querySelectorAll('body *')].filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.left>=0&&r.right>innerWidth+2&&getComputedStyle(el).position!=='fixed';}).slice(0,6).map(el=>el.tagName+'.'+el.className)}));
+  offenders:[...document.querySelectorAll('body *')].filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.left>=0&&r.right>innerWidth+2&&getComputedStyle(el).position!=='fixed';}).slice(0,6).map(el=>{
+   const selector=node=>node?node.tagName+(node.id?'#'+node.id:'')+(typeof node.className==='string'&&node.className?'.'+node.className.trim().replace(/\s+/g,'.'):''):null;const r=el.getBoundingClientRect();
+   return {element:selector(el),parent:selector(el.parentElement),ancestor:selector(el.parentElement?.parentElement),left:r.left,right:r.right,width:r.width};
+  })}));
  check(dimensions.html<=dimensions.viewport+1&&dimensions.body<=dimensions.viewport+1&&dimensions.dialogs.every(dialog=>dialog.left>=-1&&dialog.right<=dimensions.viewport+1&&dialog.scroll<=dialog.client+1),label,dimensions);
 }
-async function newPage(context){const page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message));await page.clock.setFixedTime(new Date(now));return page;}
+async function newPage(context){const page=await context.newPage();activePage=page;page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message));await page.clock.setFixedTime(new Date(now));return page;}
 try{
  const executable=process.env.ZONLIO_BROWSER_EXECUTABLE;
  browser=await ({chromium,webkit})[engine].launch({headless:true,...(executable?{executablePath:executable}:{})});
@@ -84,7 +87,7 @@ try{
  // A default-closed public configuration is a separate UI state, never a production flag change.
  await page.route('**/api/member/config',route=>route.fulfill({json:{accountsEnabled:false,subscriptionsEnabled:false}}));await page.route('**/api/member/session',route=>route.fulfill({json:{authenticated:false}}));await page.reload();await page.locator('#member-login').waitFor();check(await page.locator('#member-login button').isDisabled()&&await page.locator('#member-subscribe button').isDisabled(),'Closed public services retain disabled intake controls');
  check(errors.length===0,'No browser JavaScript errors',errors);await context.close();
-}catch(error){errors.push(String(error.message));console.error(String(error.message));}
+}catch(error){errors.push(String(error.message));console.error(String(error.message));if(activePage&&!activePage.isClosed())try{await activePage.screenshot({path:`${directory}/failure.png`,fullPage:true});}catch{/* Keep the original assertion as the failure reason. */}}
 finally{
  if(browser)await browser.close();await new Promise(done=>{server.close(done);server.closeAllConnections();});
  await writeFile(resolve(directory,'results.json'),JSON.stringify({engine,scope:'Local synthetic API, actual SQLite, fake SMTP; no production proof',checks,errors},null,2));

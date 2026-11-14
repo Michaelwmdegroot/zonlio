@@ -39,7 +39,12 @@ De directe netwerkroute uit de werkruimte kon Zonlio niet betrouwbaar ophalen. D
 
 ### GitHub-kandidaat en deployment
 
-**Nog in uitvoering bij aanmaak van dit document.** Vul concrete commit, PR, MySQL-8-run, Chromium/WebKit-run, productierun en alleen waargenomen resultaten in nadat die controles gereed zijn. Een groene lokale suite mag dit niet vervangen.
+[PR #13](https://github.com/Michaelwmdegroot/zonlio/pull/13) is vóór main gepubliceerd. De eerste kandidaat `aea435a7a2d30766995711429ba32fded852955b` leverde twee concrete bevindingen op:
+
+- [MySQL-run 43643784952](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43643784952): alle elf voorafgaande subtests slaagden; de restore-inspectie weigerde het prepared protocol voor een transactiestuurstatement (`ER_UNSUPPORTED_PS`). De statische read-only/snapshotstatements gebruiken nu `query()`; parameterqueries blijven prepared.
+- [Browser-run 43643784955](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43643784955): Chromium en WebKit passeerden 122 controles en vonden daarna een echte 324px-beheerlayout op een viewport van 320px. De centrale stylesheet geeft operationele statistieken op mobiel één leesbare kolom; geen overflow verbergen of testgrens versoepelen. Foutdiagnostiek bewaart voortaan ook een screenshot.
+
+Deze kandidaat is niet naar main gemerged. De gecorrigeerde kandidaat moet de volledige gates opnieuw doorlopen. Definitieve CI-/deploymentresultaten volgen na waarneming.
 
 ## 3. Uitvoerbare beheerprocedures
 

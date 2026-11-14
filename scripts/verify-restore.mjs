@@ -147,8 +147,10 @@ async function main() {
     const bytes = await readFile(path), manifest = validateRecoveryManifest(JSON.parse(bytes.toString('utf8')));
     const { createConnection } = await import('mysql2/promise');
     connection = await createConnection(config);
-    await connection.execute('SET TRANSACTION READ ONLY');
-    await connection.execute('START TRANSACTION WITH CONSISTENT SNAPSHOT');
+    // Transaction control uses MySQL's text protocol; parameterized inspection
+    // queries continue to use execute() inside inspectRestore.
+    await connection.query('SET TRANSACTION READ ONLY');
+    await connection.query('START TRANSACTION WITH CONSISTENT SNAPSHOT');
     const result = await inspectRestore(connection, manifest);
     await connection.rollback();
     console.log(JSON.stringify({ ...result, manifestSha256: createHash('sha256').update(bytes).digest('hex'), manifestCreatedAt: manifest.createdAt }, null, 2));
