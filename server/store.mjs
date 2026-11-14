@@ -1,5 +1,7 @@
 import { OPERATOR } from './operator.mjs';
 import { createMemberRepository } from './member-store.mjs';
+import { createOperationsRepository } from './operations-store.mjs';
+import { createPrivacyRepository } from './privacy-store.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -88,9 +90,9 @@ function periodDays(now, days) {
   return Array.from({ length: days }, (_, i) => new Date(noon - (days - i - 1) * 86400000).toISOString().slice(0, 10));
 }
 const LEAD_QUERY = `SELECT l.*, i.kind AS intake_kind, i.address_json, i.contact_preference,
-  f.owner_label, f.next_action, f.next_action_on, f.revision,
+  f.owner_label, f.next_action, f.next_action_on, f.revision, p.erased_at,
   (SELECT o.status FROM outbox o WHERE o.lead_id=l.id AND o.kind='internal_notification' LIMIT 1) AS notification_status
-  FROM leads l LEFT JOIN lead_intakes i ON i.lead_id=l.id LEFT JOIN lead_followups f ON f.lead_id=l.id`;
+  FROM leads l LEFT JOIN lead_intakes i ON i.lead_id=l.id LEFT JOIN lead_followups f ON f.lead_id=l.id LEFT JOIN zonlio_lead_privacy p ON p.lead_id=l.id`;
 function toLead(row) {
   if (!row) return null;
   return {
@@ -108,6 +110,7 @@ function toLead(row) {
     contactPreference: row.contact_preference || 'any',
     followUp: { owner: row.owner_label || '', nextAction: row.next_action || '', nextActionOn: row.next_action_on || '' },
     revision: Number(row.revision || 0),
+    erasedAt: row.erased_at || null,
   };
 }
 function duplicateError(error) {
@@ -196,13 +199,14 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
     }
   }
   catch (error) { await adapter.close(); throw error; }
-  let members;
-  try { members = await createMemberRepository({ adapter, now }); }
+  let members, operations, privacy;
+  try { members = await createMemberRepository({ adapter, now }); operations=await createOperationsRepository({adapter,now}); privacy=await createPrivacyRepository({adapter,now}); }
   catch (error) { await adapter.close(); throw error; }
   const stamp = () => new Date(now()).toISOString();
   const insertIgnore = adapter.dialect === 'mysql' ? 'INSERT IGNORE' : 'INSERT OR IGNORE';
   const store = {
-    dialect: adapter.dialect, members,
+    dialect: adapter.dialect, members, operations, privacy,
+    async probe() { return Boolean(await adapter.work(db=>db.get('SELECT 1 AS ok'))); },
     close: () => adapter.close(),
 
     async createLead(input, payloadHash) {
@@ -293,6 +297,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         // Lock the parent row: protects the first extension insert for legacy leads as well.
         const parent = await db.get(`SELECT id,status,contact_requested,contact_expires_at FROM leads WHERE id=?${adapter.dialect === 'mysql' ? ' FOR UPDATE' : ''}`, [id]);
         if (!parent) return null;
+        if(await db.get('SELECT lead_id FROM zonlio_lead_privacy WHERE lead_id=? AND erased_at IS NOT NULL',[id]))throw new LeadUpdateConflict('Dit dossier is gewist en kan niet worden heropend of aangevuld.');
         const existing = toLead(await db.get(`${LEAD_QUERY} WHERE l.id=?`, [id]));
         if (expectedRevision !== undefined && expectedRevision !== existing.revision) throw new LeadUpdateConflict();
         if (existing.status === 'withdrawn' && status !== 'withdrawn') throw new LeadUpdateConflict('Een ingetrokken contactverzoek kan niet via een statuswijziging worden heropend.');
@@ -321,7 +326,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
       return adapter.work(async db=>{
         const at=stamp();
         const rows=await db.all(`SELECT * FROM portal_events WHERE status='pending' OR (status='leased' AND locked_until<=?) ORDER BY created_at,id LIMIT ${Math.min(10,Math.max(1,limit))}${adapter.dialect==='mysql'?' FOR UPDATE':''}`,[at]);
-        for(const row of rows) {row.claim_token=randomUUID();await db.run("UPDATE portal_events SET status='leased',claim_token=?,locked_until=? WHERE id=?",[row.claim_token,new Date(now()+120000).toISOString(),row.id]);}
+        for(const row of rows) {row.claim_token=randomUUID();row.locked_until=new Date(now()+120000).toISOString();await db.run("UPDATE portal_events SET status='leased',claim_token=?,locked_until=? WHERE id=?",[row.claim_token,row.locked_until,row.id]);}
         return rows;
       },true);
     },
@@ -335,7 +340,31 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
       },true);
     },
     async portalStats() {
-      return adapter.work(async db=>Object.fromEntries((await db.all('SELECT status,COUNT(*) AS total FROM portal_events GROUP BY status')).map(r=>[r.status,Number(r.total)])));
+      return adapter.work(async db=>{
+        const counts=Object.fromEntries((await db.all('SELECT status,COUNT(*) AS total FROM portal_events GROUP BY status')).map(r=>[r.status,Number(r.total)]));
+        const pending=await db.get("SELECT MIN(created_at) AS oldest FROM portal_events WHERE status IN ('pending','leased')");
+        const expired=await db.get("SELECT COUNT(*) AS total FROM portal_events WHERE status='leased' AND locked_until<=?",[stamp()]);
+        const last=await db.get("SELECT MAX(accepted_at) AS last FROM portal_events WHERE status='accepted'");
+        return {...counts,oldestPendingAt:pending?.oldest||null,pendingAgeSeconds:pending?.oldest?Math.max(0,Math.floor((now()-Date.parse(pending.oldest))/1000)):0,expiredLeases:Number(expired?.total||0),lastAcceptedAt:last?.last||null};
+      });
+    },
+
+    async expireContactRequests({limit=100}={}) {
+      return adapter.work(async db=>{
+        const at=stamp();
+        const rows=await db.all(`SELECT id FROM leads WHERE contact_requested=1 AND contact_expires_at<=? ORDER BY contact_expires_at,id LIMIT ${Math.max(1,Math.min(100,Number.isInteger(limit)?limit:100))}${adapter.dialect==='mysql'?' FOR UPDATE':''}`,[at]);
+        for(const row of rows) {
+          const lead=toLead(await db.get(`${LEAD_QUERY} WHERE l.id=?`,[row.id]));
+          const revision=lead.revision+1;
+          await db.run(`${insertIgnore} INTO lead_followups (lead_id,owner_label,next_action,next_action_on,revision) VALUES (?,?,?,?,?)`,[lead.id,'','',null,0]);
+          await db.run('UPDATE lead_followups SET next_action=?,next_action_on=NULL,revision=? WHERE lead_id=?',['',revision,lead.id]);
+          await db.run('UPDATE leads SET contact_requested=0,updated_at=? WHERE id=?',[at,lead.id]);
+          await db.run("UPDATE outbox SET status='cancelled',locked_until=NULL,claim_token=NULL,last_error='CONTACT_EXPIRED' WHERE lead_id=? AND status IN ('pending','processing','failed')",[lead.id]);
+          await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',[randomUUID(),lead.id,lead.status,'Contacttermijn verstreken; verdere contactacties en wachtende e-mails gestopt.','system',at]);
+          if(lead.kind==='housing'&&lead.controller.name===OPERATOR.name)await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',[randomUUID(),`${lead.id}:${revision}`,lead.id,revision,'pending',at]);
+        }
+        return {expired:rows.length};
+      },true);
     },
     async createSession(idHash, email, expiresAt) {
       await adapter.work((db) => db.run('INSERT INTO admin_sessions (id_hash,email,created_at,expires_at) VALUES (?,?,?,?)',
@@ -365,7 +394,8 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         const rows = await db.all('SELECT status,COUNT(*) AS total FROM outbox GROUP BY status');
         const counts = Object.fromEntries(rows.map((row) => [row.status, Number(row.total)]));
         const last = await db.get("SELECT MAX(sent_at) AS last_success FROM outbox WHERE status='sent'");
-        return { pending: (counts.pending || 0) + (counts.processing || 0), failed: counts.failed || 0, sent: counts.sent || 0, cancelled: counts.cancelled || 0, lastSuccessAt: last?.last_success || null };
+        const oldest=await db.get("SELECT MIN(created_at) AS oldest FROM outbox WHERE status IN ('pending','processing')");
+        return { pending: (counts.pending || 0) + (counts.processing || 0), failed: counts.failed || 0, sent: counts.sent || 0, cancelled: counts.cancelled || 0, lastSuccessAt: last?.last_success || null, oldestPendingAt:oldest?.oldest||null };
       });
     },
 
@@ -374,8 +404,11 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
       return adapter.work(async (db) => {
         // Rows are reduced using Amsterdam calendar dates, independent of DB server timezone.
         const since = new Date(Date.parse(`${dates[0]}T00:00:00Z`) - 86400000).toISOString();
-        const rows = (await db.all('SELECT created_at,status,topic,source_path FROM leads WHERE created_at>=?', [since]))
+        const rows = (await db.all('SELECT id,created_at,status,topic,source_path FROM leads WHERE created_at>=?', [since]))
           .filter((row) => dates.includes(calendarDay(row.created_at)));
+        const history=await db.all('SELECT h.lead_id,h.status FROM lead_history h JOIN leads l ON l.id=h.lead_id WHERE l.created_at>=?',[since]);
+        const reached=new Map(rows.map(row=>[row.id,new Set([row.status])]));
+        for(const row of history)reached.get(row.lead_id)?.add(row.status);
         const views = await db.all('SELECT day,SUM(total) AS total FROM page_views WHERE day>=? GROUP BY day', [dates[0]]);
         const sessions = await db.all('SELECT day,COUNT(*) AS total FROM analytics_sessions WHERE day>=? GROUP BY day', [dates[0]]);
         const sessionCount = await db.get('SELECT COUNT(DISTINCT session_hash) AS total FROM analytics_sessions WHERE day>=?', [dates[0]]);
@@ -385,17 +418,20 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         const eventMap = Object.fromEntries(events.map((r) => [r.event, Number(r.total)]));
         const counts = Object.fromEntries(Object.keys(LEAD_STATUS_LABELS).map((status) => [status, rows.filter((r) => r.status === status).length]));
         const at = stamp();
-        const allOpen = await db.all(`SELECT l.contact_requested,l.contact_expires_at,f.owner_label,f.next_action_on
+        const allOpen = await db.all(`SELECT l.status,l.created_at,l.contact_requested,l.contact_expires_at,f.owner_label,f.next_action_on
           FROM leads l LEFT JOIN lead_followups f ON f.lead_id=l.id
           WHERE l.status NOT IN ('won','lost','closed','withdrawn')`);
         const actionable = allOpen.filter(r => r.contact_requested && r.contact_expires_at > at);
         const workload = { open: allOpen.length, actionable: actionable.length,
           unassigned: actionable.filter(r => !r.owner_label).length,
+          unhandled: actionable.filter(r => r.status==='new' && Date.parse(r.created_at)<now()-24*3600000).length,
           due: actionable.filter(r => r.next_action_on && r.next_action_on <= calendarDay(now())).length,
           expired: allOpen.filter(r => r.contact_expires_at <= at).length,
           scope: 'Alle open dossiers, los van de gekozen instroomperiode. Acties uitsluitend binnen geldige contactverzoeken.' };
-        const sources = ['overzicht','planner','2027','batterij'].map(sourcePath => ({ sourcePath,
-          leads: rows.filter(r => r.source_path === sourcePath).length }));
+        const sources = ['overzicht','planner','2027','batterij'].map(sourcePath => {
+          const cohort=rows.filter(r=>r.source_path===sourcePath);
+          return {sourcePath,leads:cohort.length,milestones:Object.fromEntries(['attempted','contacted','qualified','appointment','quoted','won','lost'].map(status=>[status,cohort.filter(row=>reached.get(row.id)?.has(status)).length]))};
+        });
         return {
           days, from: dates[0], to: dates.at(-1), workload, acquisition: sources,
           totals: { leads: rows.length, ...counts, pageViews: views.reduce((n, r) => n + Number(r.total), 0),
@@ -416,11 +452,15 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         for (const row of rows) {
           row.claim_token = randomUUID();
           row.attempts = Number(row.attempts) + 1;
+          row.locked_until = until;
           await db.run("UPDATE outbox SET status='processing',attempts=?,locked_until=?,claim_token=? WHERE id=?",
             [row.attempts, until, row.claim_token, row.id]);
         }
         return rows;
       }, true);
+    },
+    async mailClaimActive(item) {
+      return adapter.work(db=>db.get("SELECT id FROM outbox WHERE id=? AND claim_token=? AND status='processing' AND locked_until>?",[item.id,item.claim_token,stamp()])).then(Boolean);
     },
     async deferMail(item) {
       await adapter.work(db=>db.run("UPDATE outbox SET status='pending',attempts=attempts-1,next_attempt_at=?,claim_token=NULL,locked_until=NULL,last_error='SEND_BUDGET' WHERE id=? AND claim_token=? AND status='processing'",[new Date(now()+15*60000).toISOString(),item.id,item.claim_token]));

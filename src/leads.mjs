@@ -31,7 +31,7 @@ export function openLeadForm({config,profile,sourcePath,summary,showDialog,onOpe
       <label class="check-row lead-check"><input type="checkbox" name="shareScenario"><span>Deel ook mijn rekenprofiel, zodat de adviseur mijn uitgangspunt kan bekijken.<small>Jaarverbruik, opwek, tarieven en gekozen batterijaannames. Deze keuze is vrijwillig.</small></span></label>
       <label class="check-row lead-check"><input type="checkbox" name="contactRequested" required><span id="lead-contact-text">${esc(config.contactTexts.email)}</span></label>
       <p class="lead-privacy">Je schrijft je niet in voor marketing. Lees hoe we je aanvraag verwerken in de <a href="/privacy" target="_blank" rel="noopener">privacyverklaring</a>.</p>
-      <div id="lead-error" class="form-message error hidden" role="alert"></div><p id="lead-token-status" class="mini-note" role="status">Formulier wordt klaargezet…</p>
+      <div id="lead-error" class="form-message error hidden" role="alert" tabindex="-1"></div><p id="lead-token-status" class="mini-note" role="status">Formulier wordt klaargezet…</p>
       <button id="lead-submit" class="button button-primary lead-submit" type="submit" disabled>Verstuur mijn aanvraag</button>
       <p class="mini-note">Je krijgt een ontvangstnummer zodra de aanvraag is opgeslagen.</p>
     </form>`);
@@ -44,10 +44,12 @@ export function openLeadForm({config,profile,sourcePath,summary,showDialog,onOpe
     try {
       const result=await api('/api/form-token');
       if(typeof result.token!=='string'||!result.token)throw new Error('Het formulier kan nu niet worden klaargezet.');
+      if(!form.isConnected)return;
       state.token=result.token;
       tokenStatus.textContent='';
       submit.disabled=state.pending;
     } catch(error) {
+      if(!form.isConnected)return;
       state.token=null;
       tokenStatus.innerHTML='Het formulier kon niet worden klaargezet. <button type="button" class="button-text" id="retry-form-token">Opnieuw proberen</button>';
       form.querySelector('#retry-form-token')?.addEventListener('click',prepareToken);
@@ -93,8 +95,10 @@ export function openLeadForm({config,profile,sourcePath,summary,showDialog,onOpe
     try {
       const result=await api('/api/leads',{method:'POST',body:payload});
       if(result.ok!==true||typeof result.reference!=='string')throw new Error('We konden de ontvangst nog niet bevestigen. Probeer dezelfde aanvraag opnieuw.');
+      if(!form.isConnected)return;
       showDialog(`<div class="lead-success-mark" aria-hidden="true">✓</div><span class="badge">Aanvraag ontvangen</span><h2 id="dialog-title">Goed, we hebben je vraag.</h2><p class="dialog-text">Je aanvraag voor ${esc(receiver)} is opgeslagen. Je hebt gekozen voor contact ${payload.channel==='email'?'per e-mail':'per telefoon'}.</p><div class="source-card"><strong>Je ontvangstnummer</strong><p class="lead-reference">${esc(result.reference)}</p><p>Bewaar dit nummer als je later een vraag hebt. De melding aan het adviesteam wordt verwerkt.</p></div><p class="dialog-text">Je bent niet aangemeld voor marketing. Je rekenprofiel is ${payload.shareScenario?'meegestuurd volgens jouw keuze':'niet meegestuurd'}.</p><div class="dialog-actions"><button class="button button-primary" data-action="close-dialog">Terug naar mijn inzicht</button></div>`);
     } catch(error) {
+      if(!form.isConnected)return;
       setError(error.message||'Versturen is niet gelukt. Je invoer staat nog klaar.');
       for(const [key,message] of Object.entries(error.data?.fieldErrors||{})) {
         const output=[...form.querySelectorAll('[data-error]')].find(el=>el.dataset.error===key);

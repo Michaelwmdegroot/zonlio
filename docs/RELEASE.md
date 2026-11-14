@@ -1,3 +1,11 @@
+# Actuele release
+
+De huidige afrondingsrelease is `autonomy-ready-04-20261114`. Zie [het volledige releasebewijs en GO/HOLD per dienst](AUTONOMY-04-RELEASE-2026-11-14.md), de [masterchecklist](COMPLETION-MASTER-CHECKLIST-2026-11-14.md) en het [operationsrunbook](AUTONOMOUS-OPERATIONS.md). De bevestigde exploitant is NIVO Groep Holland BV. Publieke commerciële functies en Portal blijven afzonderlijk vrij te geven.
+
+## Historisch: technische pilot vóór groei- en afrondingsreleases
+
+De volgende registratie beschrijft uitsluitend de oorspronkelijke fase. Oude ontvanger-/activeringsinstructies zijn vervangen door de actuele documenten hierboven.
+
 # Zonlio 1.0 — actuele release en vervolg
 
 **Status op 14 november 2026: technische pilot afgerond; commerciële adviesroute HOLD.** Bron van waarheid: [pilotoverdracht](PILOT-HANDOFF-2026-11-14.md). Dit document vervangt de vroegere status 'nog geen Hostinger-deployment'.

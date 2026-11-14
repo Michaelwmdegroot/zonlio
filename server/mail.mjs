@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { CLOSED_STATUSES } from '../src/advice-schema.mjs';
 
 function errorCode(error) {
   const allowed = ['EAUTH', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'EENVELOPE', 'EMESSAGE'];
@@ -9,9 +10,11 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&a
 
 export function createMail({ env = process.env, store, transport, logger = () => {}, now = () => Date.now() } = {}) {
   const password = env.SMTP_PASSWORD || env.SMTP_PASS;
-  const configured = Boolean(store && (transport || password));
+  const paused = env.MAIL_SEND_PAUSED === 'true';
   const from = env.SMTP_USER || 'info@zonlio.nl';
   const recipient = env.LEAD_NOTIFY_TO || 'info@zonlio.nl';
+  const singleAddress=value=>typeof value==='string'&&/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(value);
+  const configured = Boolean(store && (transport || password) && singleAddress(from) && singleAddress(recipient));
   const publicUrl = env.PUBLIC_URL || env.APP_URL || 'https://zonlio.nl';
   const port = Number(env.SMTP_PORT || 465);
   const smtp = transport || (configured ? nodemailer.createTransport({
@@ -45,9 +48,10 @@ export function createMail({ env = process.env, store, transport, logger = () =>
   }
 
   return {
-    configured,
+    configured, paused,
     async sendService(message) {
       if (!configured) throw new Error("MAIL_NOT_CONFIGURED");
+      if (paused) throw new Error('MAIL_PAUSED');
       return smtp.sendMail({ ...message, disableFileAccess:true, disableUrlAccess:true });
     },
     async verify() {
@@ -57,27 +61,45 @@ export function createMail({ env = process.env, store, transport, logger = () =>
     },
     async processBatch({ limit = 3, retryFailed = false } = {}) {
       if (!configured) return { ok: false, configured: false, processed: 0, sent: 0, failed: 0, pending: store ? (await store.mailStats()).pending : 0 };
+      const quota = Number(env.SMTP_DAILY_LIMIT || 0);
+      if (paused || !Number.isInteger(quota) || quota < 1 || quota > 100) return { ok:false, configured:true, processed:0, sent:0, failed:0, reason:paused?'paused':'budget_unconfigured', pending:(await store.mailStats()).pending };
       if (retryFailed) await store.retryFailedMail(limit);
       const items = await store.claimOutbox(limit);
       let sent = 0; let failed = 0; let cancelled = 0;
       for (const item of items) {
+        let targetEmail = null;
         try {
-          const record = await store.getLead(item.lead_id);
+          let record = await store.getLead(item.lead_id);
           if (!record) throw new Error('LEAD_UNAVAILABLE');
           // Recheck after claiming: queued work must respect withdrawal and expiry.
-          if (!record.lead.contactRequested || record.lead.status === 'withdrawn' || Date.parse(record.lead.contactExpiresAt) <= now()) {
+          if (!await store.mailClaimActive(item) || !record.lead.contactRequested || CLOSED_STATUSES.includes(record.lead.status) || Date.parse(record.lead.contactExpiresAt) <= now()) {
             await store.cancelMail(item); cancelled += 1; continue;
           }
-          const quota = Number(env.SMTP_DAILY_LIMIT || 0);
-          if (Number.isInteger(quota) && quota > 0 && store.members && !await store.members.reserveBudget('lead', quota)) {
+          if (item.kind==='customer_confirmation' && await store.members.suppressionForEmail?.(record.lead.email)) {
+            await store.cancelMail(item,'DELIVERY_SUPPRESSED'); cancelled += 1; continue;
+          }
+          if (!store.members || !await store.members.reserveBudget('lead', quota)) {
             await store.deferMail(item); continue;
           }
-          const result = await smtp.sendMail(messageFor(record.lead, item));
-          if (Array.isArray(result?.rejected) && result.rejected.length) throw Object.assign(new Error('RECIPIENT_REJECTED'), { code: 'EENVELOPE' });
+          // Budget reservation may wait for a concurrent worker; check rights/lease again.
+          record = await store.getLead(item.lead_id);
+          if (!record || !await store.mailClaimActive(item) || !record.lead.contactRequested || CLOSED_STATUSES.includes(record.lead.status) || Date.parse(record.lead.contactExpiresAt)<=now()
+            || (item.kind==='customer_confirmation' && await store.members.suppressionForEmail?.(record.lead.email))) {
+            await store.cancelMail(item); cancelled += 1; continue;
+          }
+          const message = messageFor(record.lead, item);
+          if (item.kind === 'customer_confirmation') targetEmail = message.to;
+          const result = await smtp.sendMail(message);
+          if (!Array.isArray(result?.accepted) || result.accepted.length!==1 || result?.rejected?.length) throw Object.assign(new Error('RECIPIENT_REJECTED'), { code: 'EENVELOPE' });
           await store.finishMail(item, { success: true });
           sent += 1;
         } catch (error) {
           const code = errorCode(error);
+          // A correction may change the dossier while SMTP is in flight. A
+          // bounce applies only to the address attempted, never its replacement.
+          if (targetEmail && /\b5\.1\.[01]\b/.test(String(error?.response||''))) {
+            await store.members.suppressEmail?.(targetEmail,'hard_bounce');
+          }
           await store.finishMail(item, { success: false, errorCode: code });
           logger({ event: 'mail_attempt_failed', code });
           failed += 1;

@@ -19,6 +19,16 @@ De agent kan op basis van de broncode, GitHub, officiële documentatie en eigen 
 
 **Een Hostinger Mail-connectie geeft geen automatische toegang tot hPanel, de database of cron.** Als de agent die omgeving niet kan bedienen, voer hieronder de strikt noodzakelijke UI-handelingen uit of verschaf expliciet toegestane beperkte koppeling zonder wachtwoorden in chat.
 
+## Concrete overdracht na afrondingsrelease 04
+
+De bouw-/testvoortgang staat in [release 04](AUTONOMY-04-RELEASE-2026-11-14.md). Hostinger hPanel blokkeerde aanmelden vanuit de cloudbrowser; daarom blijven uitsluitend de noodzakelijke hosting-/productiehandelingen hier bij de eigenaar. De mailconnector is geen hostingtoegang.
+
+- **E1:** voer de exacte Node24-cronopdracht en drie-ticks-/restartcontrole uit [AUTONOMOUS-OPERATIONS.md](AUTONOMOUS-OPERATIONS.md).
+- **E2/E5:** gebruik de aparte restorechecker, het privéherstelregister en het concrete conceptbewaarbeleid uit [PRIVACY-OPERATIONS.md](PRIVACY-OPERATIONS.md).
+- **E3/E6:** leg de echte eigen account-/advies-/dagmailketens en geschoonde authenticatie-/afmeldresultaten vast; de losse SMTP-test hoeft niet opnieuw.
+- **E4:** bekrachtig alleen de open proceskeuzes in [NIVO-FOLLOWUP.md](NIVO-FOLLOWUP.md). Pim, entiteit en route staan vast; deel geen beheerwachtwoord als teamoplossing.
+- **E7:** geef publieke diensten afzonderlijk vrij na bewijs. `LEAD_ENABLED` is nu expliciet apart van bedrijfsbevestiging en woningadvies. Portal blijft uit.
+
 ## Wat we nog echt van de eigenaar nodig hebben
 
 ### E1 — Hostinger Cron-taak instellen / uitvoering aantonen (eigenaarshandeling)
@@ -66,7 +76,7 @@ Geen extra medewerkersaccounts of onbevestigde contactbeloftes publiceren.
 ### E7 — Expliciete vrijgave van publieke diensten (eigenaar-GO)
 
 Na bewijs van P0 en E1–E6 maakt agent één helder GO/HOLD-besluit per dienst:
-1. Woningadvies, met `LEAD_CONTROLLER_CONFIRMED` en `HOUSING_ADVICE_ENABLED` alleen na werkende opslag/contactproces;
+1. Algemene adviesvragen (`LEAD_ENABLED`) en woningadvies (`HOUSING_ADVICE_ENABLED`) afzonderlijk, met `LEAD_CONTROLLER_CONFIRMED` alleen na werkende opslag/contactproces;
 2. Mijn Zonlio-account en dagplaninschrijving;
 3. Dagelijks automatisch versturen na scheduler/afmelding/quotacontrole;
 4. **Portal-export voorlopig NO-GO**, totdat de ontvangende Portal gereed en apart getest is.

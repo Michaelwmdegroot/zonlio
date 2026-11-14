@@ -142,6 +142,7 @@ export function createAuth({ env = process.env, store, now = () => Date.now() } 
     },
     cronAllowed(request) {
       return typeof env.CRON_SECRET === 'string' && env.CRON_SECRET.length >= 32
+        && env.CRON_SECRET !== env.SESSION_SECRET
         && equal(request.headers.authorization || '', `Bearer ${env.CRON_SECRET}`);
     },
   };

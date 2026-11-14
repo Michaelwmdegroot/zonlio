@@ -1,2 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://zonlio.nl/</loc></url><url><loc>https://zonlio.nl/contact</loc></url><url><loc>https://zonlio.nl/privacy</loc></url></urlset>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://zonlio.nl/</loc></url>
+  <url><loc>https://zonlio.nl/kennis</loc></url>
+  <url><loc>https://zonlio.nl/stroomprijzen</loc></url>
+  <url><loc>https://zonlio.nl/slim-stroomverbruik</loc></url>
+  <url><loc>https://zonlio.nl/zonnepanelen-2027</loc></url>
+  <url><loc>https://zonlio.nl/terugleveren</loc></url>
+  <url><loc>https://zonlio.nl/thuisbatterij-berekenen</loc></url>
+  <url><loc>https://zonlio.nl/contact</loc></url>
+  <url><loc>https://zonlio.nl/privacy</loc></url>
+</urlset>

@@ -2,7 +2,7 @@
 
 # Zonlio — afspraken voor verdere ontwikkeling
 
-Lees eerst `docs/PILOT-HANDOFF-2026-11-14.md` en de actuele QA-/release-notities. Bestaande Node 24 / Express / MySQL-architectuur behouden. `main` kan automatisch naar Hostinger deployen. De eigenaar heeft op 14 november 2026 expliciet gevraagd op `main` verder te bouwen. Werk vanaf de actuele main-commit, test een afgebakende wijziging vóór publicatie, gebruik een atomische commit en nooit een force-push. Een ontwikkelopdracht is geen toestemming voor commerciële activering.
+Lees daarna `docs/AUTONOMY-04-RELEASE-2026-11-14.md`, `docs/AUTONOMOUS-OPERATIONS.md` en `docs/PRIVACY-OPERATIONS.md`; pilotnotities zijn historisch. Bestaande Node 24 / Express / MySQL-architectuur behouden. `main` kan automatisch naar Hostinger deployen. De eigenaar heeft op 14 november 2026 expliciet gevraagd op `main` verder te bouwen. Werk vanaf de actuele main-commit, test een afgebakende wijziging vóór publicatie, gebruik een atomische commit en nooit een force-push. Een ontwikkelopdracht is geen toestemming voor commerciële activering.
 
 ## Design is een gedeeld contract
 
@@ -21,3 +21,7 @@ Voer `npm run check`, `npm test`, `npm run build` en relevante MySQL-integratiet
 ## Bevestigd na groei-iteratie 2
 
 Lees `docs/GROWTH-02-2026-11-14.md` en `docs/PORTAL-CONTRACT-v1.md`. Exploitant/ontvanger is NIVO Groep Holland BV; persoonlijke eigenaar-testdata nooit in Git. Route uitsluitend Zonlio → NIVO Portal → Odoo; geen directe Odoo-export. Abonnement, account, adviesverzoek en marketing zijn afzonderlijk. Geen functies automatisch activeren op basis van codepublicatie. Databron-/mail-/Portal- en rolgrenzen blijven expliciet.
+
+## Afrondingsrelease 04
+
+Algemene intake heeft nu een eigen `LEAD_ENABLED` naast `HOUSING_ADVICE_ENABLED`; bedrijfsbevestiging activeert geen intake. Alle commerciële flags blijven afzonderlijk. Nieuwe schema’s zijn additief. Test code op PR met MySQL 8 én Chromium/WebKit voordat main automatisch naar Hostinger gaat. Beoordeel daarna actuele publieke observatie en effectieve flags. Geen bewijs van productiecron, inboxketens of echte restore afleiden uit CI. Hostinger hPanel-sign-in was vanuit de cloudbrowser geblokkeerd; exacte eigenaarstappen staan in de runbooks. De bestaande enkele beheeridentiteit is geen medewerkersrollenstelsel.

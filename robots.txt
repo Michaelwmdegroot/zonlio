@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
-Disallow: /admin
+# Public sign-in shells remain crawlable so their noindex headers can be read.
+# Personal records remain behind authenticated API routes.
 Disallow: /api/
 Disallow: /__qa/
 Sitemap: https://zonlio.nl/sitemap.xml

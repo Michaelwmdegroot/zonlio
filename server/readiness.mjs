@@ -6,7 +6,7 @@ export function buildReadiness({ env = {}, runtime = {}, now = Date.now, smtpChe
   const operator = operatorConfiguration(env);
   const production = env.NODE_ENV === 'production';
   const quota = Number(env.SMTP_DAILY_LIMIT || 0);
-  const quotaValid = Number.isInteger(quota) && quota > 0 && quota <= 100000;
+  const quotaValid = Number.isInteger(quota) && quota > 0 && quota <= 100;
   const cronPresent = typeof env.CRON_SECRET === 'string' && env.CRON_SECRET.length >= 32;
   const cronSeparate = cronPresent && env.CRON_SECRET !== env.SESSION_SECRET;
   let originValid = false;
@@ -28,12 +28,13 @@ export function buildReadiness({ env = {}, runtime = {}, now = Date.now, smtpChe
   check('origin', 'Website-origin', originValid && aliasesAgree, ['APP_URL', 'PUBLIC_URL'], 'Gebruik https://zonlio.nl. Verwijder een tegenstrijdige PUBLIC_URL-alias of maak beide gelijk.');
   check('operator_confirmation', 'Afzonderlijke activeringsbevestiging', env.LEAD_CONTROLLER_CONFIRMED === 'true', ['LEAD_CONTROLLER_CONFIRMED'], 'Staat bewust uit totdat de operationele controles zijn afgerond. Een juiste bedrijfsnaam is niet dezelfde instelling als deze activeringsbevestiging.');
   check('smtp', 'SMTP-configuratie aanwezig', runtime.mailConfigured === true, ['SMTP_USER', 'SMTP_PASSWORD'], 'Controleer de bestaande SMTP-configuratie. Gebruik daarna Verbinding controleren; dit is nog geen afleverproef.', 'mail');
-  check('mail_budget', 'Uitgaand appbudget ingesteld', quotaValid, ['SMTP_DAILY_LIMIT'], 'Stel een positief appbudget in op basis van het werkelijke mailboxquotum. Houd ruimte vrij voor webmail en andere apps; geen quotum gokken.', 'mail');
+  check('mail_budget', 'Uitgaand appbudget ingesteld', quotaValid, ['SMTP_DAILY_LIMIT'], 'Gebruik een appbudget van 1–100 binnen de bevestigde mailboxlimiet van 100/24 uur. Houd ruimte vrij voor webmail en andere apps; voorstel 50.', 'mail');
   check('cron', 'Afzonderlijke onderhoudssleutel', cronSeparate, ['CRON_SECRET'], 'Gebruik een eigen sleutel van minimaal 32 tekens, anders dan SESSION_SECRET. Deze controle bewijst niet dat cron draait.', 'maintenance');
   const passed = id => checks.find(item => item.id === id)?.status === 'pass';
   const base = ['database', 'admin', 'operator_name', 'operator_contact', 'origin', 'operator_confirmation'];
   const mailBase = [...base, 'smtp', 'mail_budget'];
   const definitions = [
+    ['leads', 'Algemene adviesvragen', 'LEAD_ENABLED', runtime.leadEnabled, base],
     ['housing', 'Woningadvies', 'HOUSING_ADVICE_ENABLED', runtime.housingAdviceEnabled, base],
     ['accounts', 'Mijn Zonlio-accounts', 'MEMBER_ACCOUNTS_ENABLED', runtime.accountsEnabled, mailBase],
     ['signup', 'Dagplan inschrijven', 'DAYMAIL_SIGNUP_ENABLED', runtime.subscriptionsEnabled, mailBase],

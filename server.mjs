@@ -31,6 +31,9 @@ export function safeRequestPath(rawUrl = '/') {
 
 function assetFor(path) {
   const pages = { '/':'index.html', '/index.html':'index.html', '/admin':'admin.html', '/admin/':'admin.html', '/admin.html':'admin.html', '/contact':'pages/contact.html', '/contact/':'pages/contact.html', '/privacy':'pages/privacy.html', '/privacy/':'pages/privacy.html', '/mijn':'pages/member.html', '/mijn/':'pages/member.html' };
+  for (const [route, page] of Object.entries({ '/kennis':'knowledge', '/stroomprijzen':'prices', '/slim-stroomverbruik':'planning', '/zonnepanelen-2027':'solar-2027', '/terugleveren':'export', '/thuisbatterij-berekenen':'battery' })) {
+    pages[route] = pages[`${route}/`] = `pages/${page}.html`;
+  }
   if (pages[path]) return { name:pages[path], type:'text/html; charset=utf-8' };
   if (/^\/src\/[a-zA-Z0-9][a-zA-Z0-9._-]*\.(mjs|css)$/.test(path)) return { name:path.slice(1), type:path.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8' };
   if (/^\/public\/[a-zA-Z0-9][a-zA-Z0-9._-]*\.(svg|png|webp|ico|webmanifest)$/.test(path)) {
@@ -51,7 +54,7 @@ export async function createAppServer({rootDir=ROOT,preferDist=true,qaMode=false
   const qa=qaMode&&!isProduction;
   const market=providedMarket??createMarketService();
   const weather=providedWeather??createWeatherService();
-  const backend=providedBackend??await createBackend({env,weatherRegions:WEATHER_REGIONS,market});
+  const backend=providedBackend??await createBackend({env,market,weather});
   const app=express();
   app.disable('x-powered-by');
   if (/^[1-3]$/.test(env.TRUST_PROXY_HOPS||'')) app.set('trust proxy',Number(env.TRUST_PROXY_HOPS));
@@ -70,7 +73,10 @@ export async function createAppServer({rootDir=ROOT,preferDist=true,qaMode=false
     next();
   });
   app.use(express.json({limit:'24kb',strict:true}));
-  app.get('/api/health',(_req,res)=>res.json({ok:true,version:VERSION,releaseId:RELEASE_ID,mode:'live',services:backend.health(),sources:{prices:market.getStatus(),weather:weather.getStatus()}}));
+  app.get('/api/health',async(_req,res)=>{
+    const operations=await backend.operationalHealth?.();
+    res.json({ok:true,version:VERSION,releaseId:RELEASE_ID,mode:'live',services:{...backend.health(),...(operations?{databaseReady:operations.databaseReady}:{})},...(operations?{operations}:{}),sources:{prices:market.getStatus(),weather:weather.getStatus()}});
+  });
   app.get('/api/prices',async(req,res)=>{
     if (typeof req.query.date!=='string') return res.status(400).json({error:'Geef één datum op als JJJJ-MM-DD.'});
     try {res.json(await market.getDay(req.query.date));}

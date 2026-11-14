@@ -9,6 +9,8 @@ import { createStore, StoreConflict, LeadUpdateConflict } from './store.mjs';
 import { HOUSING_CONSENT_VERSION, LEAD_STATUS_LABELS, housingFieldErrors, followUpFieldErrors } from '../src/advice-schema.mjs';
 import { createAuth, sha256 } from './auth.mjs';
 import { createMail } from './mail.mjs';
+import { createOperations } from './operations.mjs';
+import { RELEASE_ID } from './release.mjs';
 
 export const CONSENT_VERSION = '2026-11-14-v2-nivo';
 const PATHS = ['overzicht', 'planner', '2027', 'batterij'];
@@ -110,7 +112,7 @@ function validateLead(body, { auth, controller, contactTexts, housing = false })
 }
 
 /** All routes are relative to /api. The parent app installs its bounded JSON parser. */
-export async function createBackend({ env = process.env, now = () => Date.now(), logger, mailTransport, market } = {}) {
+export async function createBackend({ env = process.env, now = () => Date.now(), logger, mailTransport, market, weather } = {}) {
   const log = typeof logger === 'function' ? logger : () => {};
   let store = null;
   try { store = await createStore({ env, now }); }
@@ -134,6 +136,8 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   }
   const auth = createAuth({ env, store, now });
   const mail = createMail({ env, store, transport: mailTransport, logger: log, now });
+  const instanceId=randomUUID();
+  const operations=store?createOperations({env,store,mail,market,weather,now}):null;
   const router = express.Router();
   const jobs = new Set();
   const operator = operatorConfiguration(env);
@@ -141,9 +145,11 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   const configuredController = operator.matches ? controller.name : null;
   const contactTexts = Object.fromEntries(['email', 'phone'].map((channel) => [channel,
     `Met deze aanvraag vraag je ${controller.name} om binnen 30 dagen ${channel === 'phone' ? 'telefonisch' : 'per e-mail'} te reageren over het gekozen onderwerp. Zonlio gebruikt daarvoor je ingevulde contactgegevens en, als je dat kiest, je berekening. Je kunt je aanvraag intrekken via ${controller.email}. Dit is geen nieuwsbriefinschrijving.`]));
-  const enabled = Boolean(store && operator.matches && (!auth.production || (operator.confirmed && auth.configured)));
+  const intakeReady = Boolean(store && operator.matches && (!auth.production || (operator.confirmed && auth.configured)));
+  // Identity confirmation also supports accounts; it is never a public lead switch.
+  const enabled = intakeReady && (env.LEAD_ENABLED === 'true' || (!auth.production && env.LEAD_ENABLED === undefined));
   // A separate, explicit gate: deployment or design approval never enables the new intake.
-  const housingAdviceEnabled = enabled && env.HOUSING_ADVICE_ENABLED === 'true'
+  const housingAdviceEnabled = intakeReady && env.HOUSING_ADVICE_ENABLED === 'true'
     && operator.confirmed && Boolean(configuredController);
   const housingContactText = `Ik vraag ${controller.name} om binnen 30 dagen telefonisch te reageren over mijn gekozen woningvraag. Hiervoor worden mijn contactgegevens en woningadres gebruikt en alleen als ik dat kies mijn rekenprofiel. Mijn voorkeursmoment is geen bevestigde afspraak. Ik kan mijn verzoek intrekken via ${controller.email}. Dit is geen nieuwsbriefinschrijving of toestemming voor algemene marketing.`;
   const portal = createPortalRouter({env,store,auth,now});
@@ -176,7 +182,7 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     if (!auth.csrfAllowed(request, request.adminSession)) return response.status(403).json({ error: 'Bevestig je beheersessie opnieuw.' });
     next();
   }
-  const mailStatus = async () => ({ configured: mail.configured, ...(store ? await store.mailStats() : { pending: 0, failed: 0, sent: 0, lastSuccessAt: null }) });
+  const mailStatus = async () => ({ configured: mail.configured, paused:mail.paused, ...(store ? await store.mailStats() : { pending: 0, failed: 0, sent: 0, lastSuccessAt: null }) });
 
   router.use((_request, response, next) => { response.setHeader('Cache-Control', 'no-store'); next(); });
   router.use('/portal', portal.router);
@@ -185,7 +191,7 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     disabledReason, controller, consentVersion: CONSENT_VERSION, contactTexts, analyticsEnabled, adminConfigured: auth.configured,
     housingAdviceEnabled, operatorConfigured:operator.matches, members:memberService.config(), housingConsentVersion: HOUSING_CONSENT_VERSION, housingContactText }));
   router.get('/form-token', (request, response) => {
-    if (!enabled) return response.status(503).json({ error: disabledReason });
+    if (!enabled && !housingAdviceEnabled) return response.status(503).json({ error: disabledReason });
     if (!auth.limiter.take(`form:${auth.requestKey(request)}`, 120, 10 * 60000)) return response.status(429).json({ error: 'Probeer het over enkele minuten opnieuw.' });
     response.json(auth.issueFormToken());
   });
@@ -245,7 +251,7 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     try { memberStats = await store?.members?.stats(); } catch { /* Report failure without exposing SQL. */ }
     const memberConfig = memberService.config();
     response.json(buildReadiness({ env, now, smtpCheck: lastSmtpCheck, deliveryTest: lastDeliveryTest, maintenance: memberStats?.maintenance,
-      runtime: { databaseReady: Boolean(memberStats), adminConfigured: auth.configured, mailConfigured: mail.configured,
+      runtime: { databaseReady: Boolean(memberStats), adminConfigured: auth.configured, mailConfigured: mail.configured, leadEnabled:enabled,
         housingAdviceEnabled, accountsEnabled: memberConfig.accountsEnabled,
         subscriptionsEnabled: memberConfig.subscriptionsEnabled, dailySendEnabled: memberConfig.dailySendEnabled,
         portalEnabled: portal.enabled } }));
@@ -253,7 +259,18 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   router.get('/admin/stats', administrator, async (request, response) => {
     const days = Number(request.query.days || 30);
     if (![7, 30, 90].includes(days)) return response.status(422).json({ error: 'Kies 7, 30 of 90 dagen.' });
-    response.json({ ...await store.stats(days), mail: await mailStatus(), members:{...await store.members.stats(),...memberService.config()},portal:{enabled:portal.enabled,...await store.portalStats()} });
+    response.json({ ...await store.stats(days), mail: await mailStatus(), members:{...await store.members.stats(),...memberService.config()},portal:{enabled:portal.enabled,...await store.portalStats()},operations:await operations.snapshot() });
+  });
+  router.get('/admin/operations', administrator, async (_request,response)=>response.json(await operations.snapshot()));
+  // Explicit, authenticated stop-only action for provider bounce/complaint feedback.
+  router.post('/admin/mail/suppress', administrator, csrf, async (request,response)=>{
+    const input=request.body;
+    if(!isObject(input)||Object.keys(input).some(key=>!['email','reason','confirmed'].includes(key))||input.confirmed!==true||!['hard_bounce','complaint','owner_request'].includes(input.reason))return response.status(422).json({error:'Bevestig het adres en de reden voor de verzendstop.'});
+    const email=emailAddress(input.email);
+    if(!email)return response.status(422).json({error:'Vul één geldig e-mailadres in.'});
+    if(!auth.limiter.take(`suppression:${request.adminSession.email}`,20,60000))return response.status(429).json({error:'Probeer het later opnieuw.'});
+    await store.members.suppressEmail(email,input.reason);
+    response.json({ok:true,message:'Verdere mail naar dit adres is geblokkeerd. Bestaande adviesaanvragen blijven apart beschikbaar.'});
   });
   router.get('/admin/leads', administrator, async (request, response) => {
     const { status, cursor } = request.query;
@@ -268,6 +285,35 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     const record = await store.getLead(request.params.id);
     if (!record) return response.status(404).json({ error: 'Aanvraag niet gevonden.' });
     response.json(record);
+  });
+  router.get('/admin/leads/:id/export',administrator,async(request,response)=>{
+    if(!UUID.test(request.params.id))return response.status(404).json({error:'Aanvraag niet gevonden.'});
+    const data=await store.privacy.exportLead(request.params.id);
+    if(!data)return response.status(404).json({error:'Aanvraag niet gevonden.'});
+    response.setHeader('Content-Disposition',`attachment; filename="zonlio-dossier-${request.params.id}.json"`);
+    response.json(data);
+  });
+  router.get('/admin/privacy/retention',administrator,async(_request,response)=>response.json(await store.privacy.retentionPreview()));
+  router.get('/admin/privacy/recovery',administrator,async(_request,response)=>{
+    response.setHeader('Content-Disposition','attachment; filename="zonlio-herstelregister.json"');
+    response.json(await store.privacy.recoveryManifest());
+  });
+  router.patch('/admin/leads/:id/contact',administrator,csrf,async(request,response)=>{
+    const input=request.body;
+    if(!UUID.test(request.params.id)||!isObject(input)||Object.keys(input).some(key=>!['expectedRevision','fields','requestVerified'].includes(key))||input.requestVerified!==true)return response.status(422).json({error:'Controleer het verzoek en bevestig de correctie.'});
+    const result=await store.privacy.correctLead(request.params.id,{expectedRevision:input.expectedRevision,fields:input.fields,actor:request.adminSession.email});
+    if(!result)return response.status(404).json({error:'Aanvraag niet gevonden.'});
+    response.json({ok:true,...result});
+  });
+  router.post('/admin/leads/:id/erase',administrator,csrf,async(request,response)=>{
+    const input=request.body;
+    if(!UUID.test(request.params.id)||!isObject(input)||Object.keys(input).some(key=>!['expectedRevision','confirm','requestVerified','reference'].includes(key))||input.requestVerified!==true)return response.status(422).json({error:'Controleer het verzoek en bevestig het wissen van dit dossier.'});
+    const current=await store.getLead(request.params.id);
+    if(!current)return response.status(404).json({error:'Aanvraag niet gevonden.'});
+    if(input.reference!==current.lead.reference)return response.status(422).json({error:'Typ het aanvraagnummer van dit dossier ter bevestiging.'});
+    const result=await store.privacy.eraseLead(request.params.id,{expectedRevision:input.expectedRevision,actor:request.adminSession.email,confirm:input.confirm});
+    if(!result)return response.status(404).json({error:'Aanvraag niet gevonden.'});
+    response.json({ok:true,...result});
   });
   router.patch('/admin/leads/:id', administrator, csrf, async (request, response) => {
     const fields = request.body;
@@ -300,8 +346,9 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     }
     const recipient = emailAddress(input.recipient);
     if (!recipient) return response.status(422).json({ error: 'Vul één geldig testadres in.' });
+    if (mail.paused || await store?.members?.suppressionForEmail(recipient))return response.status(409).json({error:'Verzending is gepauzeerd of voor dit adres geblokkeerd.'});
     const budget = Number(env.SMTP_DAILY_LIMIT || 0);
-    if (!store?.members || !operator.matches || !mail.configured || !Number.isInteger(budget) || budget < 1 || budget > 100000) {
+    if (!store?.members || !operator.matches || !mail.configured || !Number.isInteger(budget) || budget < 1 || budget > 100) {
       return response.status(503).json({ error: 'De testmail is geblokkeerd: controleer bedrijfsnaam, mailconfiguratie en appbudget.' });
     }
     const actor = request.adminSession.email;
@@ -347,10 +394,27 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     if (!auth.cronAllowed(request)) return response.status(401).json({ error: 'Niet geautoriseerd.' });
     if (!store) return response.status(503).json({ error: 'Database niet beschikbaar.' });
     if (!auth.limiter.take('maintenance', 6, 60000)) return response.status(429).json({ error: 'Wacht even voor een volgende taak.' });
-    response.json({ ...await mail.processBatch({ limit: 2 }), mail: await mailStatus(), members:await memberService.maintenance() });
+    const lease=await store.operations.beginRun({instanceId,releaseId:RELEASE_ID});
+    if(!lease)return response.status(202).json({ok:true,status:'busy'});
+    let success=false;
+    try {
+      const contacts=await store.expireContactRequests();
+      const results=await Promise.allSettled([mail.processBatch({limit:2}),memberService.maintenance(),operations.warmSources()]);
+      await store.operations.cleanup({analyticsRetentionConfirmed:env.ANALYTICS_RETENTION_CONFIRMED==='true'});
+      success=results.every(result=>result.status==='fulfilled');
+      const completed=await store.operations.finishRun(lease,success);
+      success=success&&completed;
+      const alerts=await operations.inspectAndNotify();
+      const value=index=>results[index].status==='fulfilled'?results[index].value:{status:'failed'};
+      response.status(success?200:503).json({...value(0),ok:success,contacts,members:value(1),sources:value(2),alerts,maintenanceCompleted:success});
+    } finally {
+      if(!success)await store.operations.finishRun(lease,false);
+    }
   });
 
   router.use((error, _request, response, _next) => {
+    if(error.code==='PRIVACY_VALIDATION')return response.status(422).json({error:'Controleer de privacyhandeling.',fieldErrors:error.fieldErrors});
+    if(error.code==='PRIVACY_CONFLICT')return response.status(409).json({error:error.message});
     if (error instanceof LeadUpdateConflict) return response.status(409).json({ error: error.message });
     if (error instanceof StoreConflict || error.code === 'IDEMPOTENCY_CONFLICT') return response.status(409).json({ error: 'Deze aanvraagcode hoort bij andere gegevens. Start een nieuwe aanvraag.' });
     log({ event: 'backend_operation_failed' });
@@ -360,6 +424,15 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   return {
     router, store, memberService, controller: Object.freeze({ ...controller }), ready: Boolean(store),
     health: () => ({ databaseReady: Boolean(store), adminConfigured: auth.configured, mailConfigured: mail.configured, leadEnabled: enabled, housingAdviceEnabled, operatorConfigured:operator.matches, operatorNameMatches:operator.nameMatches, operatorContactMatches:operator.contactMatches, portalExportEnabled:portal.enabled, memberAccountsEnabled:memberService.config().accountsEnabled, daymailSignupEnabled:memberService.config().subscriptionsEnabled, daymailSendEnabled:memberService.config().dailySendEnabled }),
+    async operationalHealth() {
+      if(!store)return {databaseReady:false,cronExpected:operations?.cronExpected||false,cronStatus:'unavailable',lastMaintenanceAt:null};
+      try {
+        await store.probe();
+        const summary=await store.operations.summary();
+        const status=!operations.cronExpected?'not_required':!summary.lastSuccessAt?'never_run':now()-Date.parse(summary.lastSuccessAt)>15*60000?'overdue':'current';
+        return {databaseReady:true,cronExpected:operations.cronExpected,cronStatus:status,lastMaintenanceAt:summary.lastSuccessAt};
+      } catch {return {databaseReady:false,cronExpected:operations.cronExpected,cronStatus:'unavailable',lastMaintenanceAt:null};}
+    },
     async recordPageView(path = 'overzicht') {
       if (!store || !PATHS.includes(path)) return;
       try { await store.recordPageView(path); } catch { log({ event: 'page_count_failed' }); }

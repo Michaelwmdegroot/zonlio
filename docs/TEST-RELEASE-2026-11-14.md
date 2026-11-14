@@ -1,3 +1,5 @@
+> **Historische fase.** Gebruik voor de huidige flags, cron en acceptatie [release 04](AUTONOMY-04-RELEASE-2026-11-14.md), [DEPLOYMENT.md](DEPLOYMENT.md) en [het operationsrunbook](AUTONOMOUS-OPERATIONS.md). Bedrijfsbevestiging opent algemene intake niet: `LEAD_ENABLED` is apart.
+
 # Testrelease 03 — testen en activering
 
 14 november 2026. De eigenaar heeft de omgevingsvariabelen gecontroleerd en gevraagd de huidige bouwfase op main klaar te zetten om te testen. **Geen opdracht om zonder controles commerciële functies te activeren.**

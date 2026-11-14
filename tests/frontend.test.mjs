@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizePrices,hourlySlots,futurePriceSlots,localDate,addDays} from '../src/api.mjs';
 import {renderPriceChart} from '../src/chart.mjs';
+import {consumerPriceSlots} from '../src/planner-prices.mjs';
 
 function response(date,intervals) {
   return {status:'available',date,timeZone:'Europe/Amsterdam',source:{name:'Test fixture'},intervals};
@@ -116,4 +117,30 @@ test('planner compares actual instants through the repeated autumn clock hour',(
   ]);
   assert.equal(localDate('2026-11-13T23:00:00Z'),'2026-11-14');
   assert.equal(addDays('2026-03-29',1),'2026-03-30');
+});
+
+test('quarter graph keeps confirmed hourly contract settlement instead of inventing intra-hour savings',()=>{
+  const data=normalizePrices(response('2026-11-14',[0,100,200,300].map((market,i)=>interval(new Date(Date.parse('2026-11-14T08:00:00Z')+i*900000).toISOString(),15,market))));
+  const contract={type:'dynamic',confirmed:true,resolution:'hour',markup:.02,energyTax:.1,vat:.21};
+  const quarters=consumerPriceSlots(data.intervals,contract,{resolution:'quarter',mode:'import'});
+  assert.deepEqual(quarters.map(s=>Number(s.price.toFixed(4))),[.3267,.3267,.3267,.3267]);
+  const hours=consumerPriceSlots(data.intervals,contract,{resolution:'hour',mode:'import'});
+  assert.equal(hours.length,1);assert.equal(hours[0].price,quarters[0].price);
+  assert.deepEqual(consumerPriceSlots(data.intervals,contract,{resolution:'quarter',mode:'market'}).map(s=>s.displayValue),[0,10,20,30]);
+  const native=consumerPriceSlots(data.intervals,{...contract,resolution:'quarter'},{resolution:'quarter',mode:'import'});
+  assert.notEqual(native[0].price,native[1].price);
+});
+
+test('missing settlement confirmation cannot display a personal import tariff',()=>{
+  const data=normalizePrices(response('2026-11-14',[interval('2026-11-14T08:00:00Z',60,100),interval('2026-11-14T09:00:00Z',60,200)]));
+  const old={type:'dynamic',confirmed:true,markup:.02,energyTax:.1,vat:.21};
+  assert.ok(consumerPriceSlots(data.intervals,old,{mode:'import'}).every(s=>s.displayValue===null));
+  const fixed={type:'fixed',confirmed:true,importRate:.31};
+  assert.deepEqual(consumerPriceSlots(data.intervals,fixed,{mode:'import'}).map(s=>s.price),[.31,.31]);
+});
+
+test('hourly contract prices preserve separate repeated Dutch autumn hours',()=>{
+  const data=normalizePrices(response('2026-10-25',Array.from({length:8},(_,i)=>interval(new Date(Date.parse('2026-10-25T00:00:00Z')+i*900000).toISOString(),15,i<4?100:200))));
+  const contract={type:'dynamic',confirmed:true,resolution:'hour',markup:0,energyTax:0,vat:0};
+  assert.deepEqual(consumerPriceSlots(data.intervals,contract,{resolution:'quarter',mode:'import'}).map(s=>s.price),[.1,.1,.1,.1,.2,.2,.2,.2]);
 });

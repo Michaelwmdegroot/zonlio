@@ -28,3 +28,18 @@ test('profiles strictly validate consent-independent data, no arbitrary contact 
  for(const value of [{name:'QA'},{devices:['unsupported']},{startHour:22,endHour:8},{scenario:{constructor:1}},{contract:{type:'dynamic',confirmed:true,markup:0,energyTax:0,vat:0}}])assert.throws(()=>cleanEnergyProfile(value),TypeError);
  assert.equal(cleanEnergyProfile({scenario:{annualUse:0}}).scenario.annualUse,0);
 });
+
+test('malformed, mixed-resolution and off-boundary price days fail closed without crashing the scheduler',()=>{
+ const raw=day('2026-11-15','2026-11-15T00:00:00+01:00');const at=Date.parse('2026-11-14T17:00:00Z');
+ for(const invalid of [null,{}, {...raw,intervals:[]}, {...raw,intervals:[{...raw.intervals[0],marketEurMWh:null},...raw.intervals.slice(1)]}, {...raw,intervals:[{...raw.intervals[0],durationMinutes:30},...raw.intervals.slice(2)]}, {...raw,intervals:raw.intervals.map(slot=>({...slot,start:new Date(Date.parse(slot.start)+30000).toISOString()}))}]){
+  assert.deepEqual(makeDayPlan(invalid,profile,at),{status:'unavailable'});
+ }
+});
+
+test('dayplan reports no executable window for past days, exhausted windows and long devices',()=>{
+ const raw=day('2026-11-15','2026-11-15T00:00:00+01:00');
+ assert.equal(makeDayPlan(raw,profile,Date.parse('2026-11-16T08:00:00Z')).status,'no_window');
+ assert.equal(makeDayPlan(raw,{devices:['car'],startHour:8,endHour:10},Date.parse('2026-11-14T17:00:00Z')).status,'no_window');
+ assert.equal(makeDayPlan(raw,profile,Date.parse('2026-11-15T21:30:00Z')).status,'no_window');
+ assert.equal(makeDayPlan(raw,{devices:[]},Date.parse('2026-11-14T17:00:00Z')).status,'no_devices');
+});

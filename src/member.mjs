@@ -1,13 +1,20 @@
-import {api} from './api.mjs';
+import {api,localHour} from './api.mjs';
 import {brand} from './brand.mjs';
 import {DAYMAIL_POLICY_VERSION,DAYMAIL_TEXT,MEMBER_DEVICES,cleanEnergyProfile} from './member-schema.mjs';
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state={config:{},session:{authenticated:false},data:null,plan:null,day:'tomorrow'};
+const state={config:{},session:{authenticated:false},data:null,plan:null,day:localHour(Date.now())>=18?'tomorrow':'today'};
 // Read tokens from a fragment, then remove them from the address/history. Never send them to analytics.
-const fragment=new URLSearchParams(location.hash.slice(1));
-const action=fragment.has('bevestig')?{kind:'verify',token:fragment.get('bevestig')}:fragment.has('afmelden')?{kind:'unsubscribe',token:fragment.get('afmelden')}:null;
-if(action)history.replaceState(null,'',location.pathname);
+function readLinkAction(){
+  const fragment=new URLSearchParams(location.hash.slice(1));
+  const next=fragment.has('bevestig')?{kind:'verify',token:fragment.get('bevestig')}:fragment.has('afmelden')?{kind:'unsubscribe',token:fragment.get('afmelden')}:null;
+  if(next)history.replaceState(null,'',location.pathname);
+  return next;
+}
+let action=readLinkAction();
+// Pasting an email link into an existing tab can be a same-document navigation.
+// It must show the same explicit confirmation, without consuming the link.
+window.addEventListener('hashchange',()=>{const next=readLinkAction();if(next){action=next;render();}});
 function notice(message,error=false){const el=$('#member-notice');el.className=error?'form-message error member-notice':'form-message member-notice';el.textContent=message;}
 const field=(id,label,value='',attrs='')=>`<div class="field"><label for="${id}">${label}</label><input id="${id}" name="${id}" value="${esc(value)}" ${attrs}></div>`;
 function edition(selected='evening'){return `<div class="field"><label for="edition">Wanneer wil je je dagplan?</label><select id="edition" name="edition"><option value="evening" ${selected==='evening'?'selected':''}>Avond · vanaf 18:00 voor morgen</option><option value="morning" ${selected==='morning'?'selected':''}>Ochtend · vanaf 07:00 voor vandaag</option></select></div>`;}
@@ -27,7 +34,8 @@ function contractFields(c){
 }
 function preferenceForm(){
   const sub=state.data.subscription;
-  return `<form id="member-preferences"><h2>Mail op jouw voorwaarden</h2><p>Status: <strong>${esc(({active:'Actief',paused:'Gepauzeerd',unsubscribed:'Afgemeld'})[sub?.status]||'Niet ingeschreven')}</strong></p>${edition(sub?.edition)}<label class="member-consent"><input type="checkbox" name="consent"><span>${esc(state.config.policyText||DAYMAIL_TEXT)}</span></label><div class="member-actions"><button class="button button-primary" name="status" value="active" ${!state.config.subscriptionsEnabled?'disabled':''}>${sub?.status==='active'?'Editie opslaan':'Dagplan activeren'}</button>${sub?'<button class="button button-secondary" name="status" value="paused">Pauzeren</button><button class="button-text" name="status" value="unsubscribed">Afmelden</button>':''}</div><p class="mini-note">Geen verkooptelefoontjes of aanbiedingen. Bij gewijzigde voorkeuren kan een al klaarstaand dagplan worden overgeslagen.</p></form>`;
+  const blocked=state.data.member.deliveryBlocked;
+  return `<form id="member-preferences"><h2>Mail op jouw voorwaarden</h2><p>Status: <strong>${esc(({active:'Actief',paused:'Gepauzeerd',unsubscribed:'Afgemeld'})[sub?.status]||'Niet ingeschreven')}</strong></p>${blocked?'<p class="member-status">Er geldt een verzendstop voor dit adres. Je kunt je profiel blijven gebruiken, exporteren of verwijderen. Voor hulp: <a href="mailto:info@zonlio.nl">info@zonlio.nl</a>.</p>':''}${edition(sub?.edition)}<label class="member-consent"><input type="checkbox" name="consent"><span>${esc(state.config.policyText||DAYMAIL_TEXT)}</span></label><div class="member-actions"><button class="button button-primary" name="status" value="active" ${!state.config.subscriptionsEnabled||blocked?'disabled':''}>${sub?.status==='active'?'Editie opslaan':'Dagplan activeren'}</button>${sub?'<button class="button button-secondary" name="status" value="paused">Pauzeren</button><button class="button-text" name="status" value="unsubscribed">Afmelden</button>':''}</div><p class="mini-note">Geen verkooptelefoontjes of aanbiedingen. Bij gewijzigde voorkeuren kan een al klaarstaand dagplan worden overgeslagen.</p></form>`;
 }
 function planMarkup(){
   const p=state.plan;
@@ -42,7 +50,13 @@ function render(){
   $('#member-app').innerHTML=state.session.authenticated&&state.data?loggedIn():loggedOut();
 }
 async function request(path,options={}){return api('/api/member'+path,{...options,headers:{...(options.method&&options.method!=='GET'?{'X-CSRF-Token':state.session.csrfToken||''}:{}),...options.headers}});}
-async function refresh(){state.session=await request('/session');state.data=state.session.authenticated?await request('/profile'):null;render();}
+async function refresh(){
+  state.session=await request('/session');state.data=state.session.authenticated?await request('/profile'):null;
+  if(state.data){
+    try{state.plan=await request('/plan?day='+state.day);}catch{state.plan={status:'unavailable'};}
+  }else state.plan=null;
+  render();
+}
 function readProfile(form){
   const p=structuredClone(state.data.member.profile);p.devices=devicesFrom(form);p.startHour=Number(form.elements.startHour.value);p.endHour=Number(form.elements.endHour.value);
   for(const k of ['annualUse','annualSolar']){if(form.elements[k].value==='')delete p.scenario[k];else p.scenario[k]=Number(form.elements[k].value);}
@@ -56,13 +70,13 @@ function readProfile(form){
 }
 document.addEventListener('change',event=>{if(event.target.id==='contract-type')$('#contract-fields').innerHTML=contractFields({type:event.target.value});});
 document.addEventListener('submit',async event=>{
-  const f=event.target;if(!f.id.startsWith('member-'))return;event.preventDefault();const button=event.submitter;
-  if(!f.reportValidity())return;button.disabled=true;
+  const f=event.target;if(!f.id.startsWith('member-'))return;event.preventDefault();const button=event.submitter||f.querySelector('button[type="submit"],button:not([type])');
+  if(!f.reportValidity()||!button)return;button.disabled=true;
   try{
     if(f.id==='member-login'){await request('/login',{method:'POST',body:{email:f.elements.email.value,website:f.elements.website.value}});notice('Controleer je inbox en spammap. Alleen de bevestigde link geeft toegang.');}
     if(f.id==='member-subscribe'){await request('/subscribe',{method:'POST',body:{email:f.elements['subscribe-email'].value,website:f.elements.website.value,edition:f.elements.edition.value,consent:f.elements.consent.checked,policyVersion:DAYMAIL_POLICY_VERSION,profile:cleanEnergyProfile({devices:devicesFrom(f),startHour:Number(f.elements.startHour.value),endHour:Number(f.elements.endHour.value)})}});notice('Controleer je inbox en bevestig je e-mailadres. Je bent nog niet ingeschreven tot je dat doet.');}
     if(f.id==='member-profile'){await request('/profile',{method:'PUT',body:{profile:readProfile(f),expectedRevision:state.data.member.revision}});state.plan=null;await refresh();notice('Je profiel is opgeslagen. Een al klaargezette mail met oudere instellingen wordt niet meer verstuurd.');}
-    if(f.id==='member-preferences'){await request('/subscription',{method:'PUT',body:{choice:{edition:f.elements.edition.value,status:button.value},consent:f.elements.consent.checked,policyVersion:DAYMAIL_POLICY_VERSION,expectedRevision:state.data.subscription?.revision??-1}});await refresh();notice('Je mailvoorkeuren zijn bijgewerkt.');}
+    if(f.id==='member-preferences'){const result=await request('/subscription',{method:'PUT',body:{choice:{edition:f.elements.edition.value,status:button.value},consent:f.elements.consent.checked,policyVersion:DAYMAIL_POLICY_VERSION,expectedRevision:state.data.subscription?.revision??-1}});state.data.subscription=result.subscription;f.outerHTML=preferenceForm();notice('Je mailvoorkeuren zijn bijgewerkt.');}
   }catch(error){notice(error.message,true);}finally{if(button.isConnected)button.disabled=false;}
 });
 document.addEventListener('click',async event=>{
@@ -70,7 +84,7 @@ document.addEventListener('click',async event=>{
   try{
     if(b.dataset.memberDay){state.day=b.dataset.memberDay;state.plan=await request('/plan?day='+state.day);$('#member-plan').innerHTML=planMarkup();document.querySelectorAll('[data-member-day]').forEach(el=>{el.classList.toggle('selected',el.dataset.memberDay===state.day);el.setAttribute('aria-pressed',String(el.dataset.memberDay===state.day));});return;}
     switch(b.dataset.memberAction){
-      case 'confirm-token':{const result=await request('/'+action.kind,{method:'POST',body:{token:action.token}});action.token='';action.done=true;await refresh();notice(result.message);break;}
+      case 'confirm-token':{const pending=action;const result=await request('/'+pending.kind,{method:'POST',body:{token:pending.token}});pending.token='';pending.done=true;await refresh();if(action===pending)notice(result.message);break;}
       case 'logout':await request('/logout',{method:'POST',body:{}});await refresh();notice('Je bent uitgelogd.');break;
       case 'delete':if(window.confirm('Je Mijn Zonlio-profiel, dagmail en sessies verwijderen? Dit verwijdert geen afzonderlijke woningadviesaanvraag.')){const result=await request('/profile',{method:'DELETE',body:{confirm:'DELETE_MY_ZONLIO'}});await refresh();notice(result.message);}break;
       case 'import-local':{
