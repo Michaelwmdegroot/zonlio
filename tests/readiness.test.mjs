@@ -59,7 +59,8 @@ test('admin readiness view is escaped, labels missing checks and has no activati
   const report = buildReadiness({env,runtime});
   report.checks[0].action='<img src=x onerror=alert(1)>';
   const html=readinessMarkup(report,{open:true});
-  assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img|<form|type="checkbox"/);
+  assert.match(html,/&lt;img/);assert.doesNotMatch(html, /<img|LEAD_CONTROLLER_CONFIRMED=|data-admin-action=\"enable/);
+  assert.match(html,/admin-testmail-form/);
   assert.match(html,/Geen bewijs van inboxbezorging|geen volledige productietest/);
   assert.match(readinessMarkup(null,{error:true}),/geen groene status/);
 });

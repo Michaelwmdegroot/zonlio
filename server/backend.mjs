@@ -3,6 +3,7 @@ import { createPortalRouter } from './portal.mjs';
 import { OPERATOR, operatorConfiguration } from './operator.mjs';
 import { createMemberService } from './members.mjs';
 import express from 'express';
+import { randomUUID } from 'node:crypto';
 import { domainToASCII } from 'node:url';
 import { createStore, StoreConflict, LeadUpdateConflict } from './store.mjs';
 import { HOUSING_CONSENT_VERSION, LEAD_STATUS_LABELS, housingFieldErrors, followUpFieldErrors } from '../src/advice-schema.mjs';
@@ -238,11 +239,12 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     response.status(204).end();
   });
   let lastSmtpCheck = null;
+  let lastDeliveryTest = null;
   router.get('/admin/readiness', administrator, async (_request, response) => {
     let memberStats = null;
     try { memberStats = await store?.members?.stats(); } catch { /* Report failure without exposing SQL. */ }
     const memberConfig = memberService.config();
-    response.json(buildReadiness({ env, now, smtpCheck: lastSmtpCheck, maintenance: memberStats?.maintenance,
+    response.json(buildReadiness({ env, now, smtpCheck: lastSmtpCheck, deliveryTest: lastDeliveryTest, maintenance: memberStats?.maintenance,
       runtime: { databaseReady: Boolean(memberStats), adminConfigured: auth.configured, mailConfigured: mail.configured,
         housingAdviceEnabled, accountsEnabled: memberConfig.accountsEnabled,
         subscriptionsEnabled: memberConfig.subscriptionsEnabled, dailySendEnabled: memberConfig.dailySendEnabled,
@@ -290,6 +292,51 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     lastSmtpCheck = { ok: result.ok === true, at: new Date(now()).toISOString() };
     response.json(result);
   });
+  // Manually requested SMTP delivery check. This does not create a lead, subscription or campaign.
+  router.post('/admin/mail/test-delivery', administrator, csrf, async (request, response) => {
+    const input = request.body;
+    if (!isObject(input) || Object.keys(input).some(key => !['recipient', 'confirmed'].includes(key)) || input.confirmed !== true) {
+      return response.status(422).json({ error: 'Bevestig dat je dit testadres beheert.' });
+    }
+    const recipient = emailAddress(input.recipient);
+    if (!recipient) return response.status(422).json({ error: 'Vul één geldig testadres in.' });
+    const budget = Number(env.SMTP_DAILY_LIMIT || 0);
+    if (!store?.members || !operator.matches || !mail.configured || !Number.isInteger(budget) || budget < 1 || budget > 100000) {
+      return response.status(503).json({ error: 'De testmail is geblokkeerd: controleer bedrijfsnaam, mailconfiguratie en appbudget.' });
+    }
+    const actor = request.adminSession.email;
+    if (!auth.limiter.take(`delivery-test-hour:${actor}`, 2, 60 * 60000)
+      || !auth.limiter.take(`delivery-test-day:${actor}`, 3, 24 * 60 * 60000)) {
+      return response.status(429).json({ error: 'De testmailbeperking is bereikt. Probeer het later opnieuw.' });
+    }
+    // Shared rolling 24-hour budget: also respects requests and account mails.
+    if (!await store.members.reserveBudget('admin_test', budget)) {
+      return response.status(429).json({ error: 'Het gereserveerde Zonlio-mailbudget is gebruikt. Probeer het later opnieuw.' });
+    }
+    const reference = randomUUID().slice(0, 8).toUpperCase();
+    const subject = `Zonlio SMTP-test ${reference}`;
+    const message = `Dit is een handmatig aangevraagde testmail vanuit Zonlio.\n\nTestcode: ${reference}\nVerzonden vanaf: info@zonlio.nl\n\nControleer of deze mail aankomt en bekijk zo nodig de spammap. Deze mail bevestigt geen adviesaanvraag of dagplaninschrijving.\n`;
+    try {
+      const result = await mail.sendService({
+        from: { name: 'Zonlio', address: env.SMTP_USER || OPERATOR.email },
+        to: recipient, replyTo: OPERATOR.email, subject, text: message,
+        html: `<!doctype html><html lang="nl"><meta charset="utf-8"><body style="font:16px/1.6 Arial,sans-serif;background:#f8fbff;color:#031a37;padding:28px"><div style="max-width:540px;margin:auto;background:#fff;border-radius:20px;padding:28px"><h1 style="color:#0765f1">Zonlio · mailtest</h1><p>Dit is een handmatig aangevraagde testmail vanuit de beveiligde beheeromgeving.</p><p><strong>Testcode: ${reference}</strong></p><p>Controleer de inbox en spammap. Een succesvolle SMTP-acceptatie is geen bewijs van inboxbezorging.</p><p>Dit bericht maakt geen adviesaanvraag of dagplaninschrijving aan.</p></div></body></html>`,
+        headers: { 'Auto-Submitted': 'auto-generated', 'X-Zonlio-Delivery-Test': '1' },
+        messageId: `<zonlio.smtp-test.${randomUUID()}@zonlio.nl>`,
+      });
+      if (!Array.isArray(result?.accepted) || result.accepted.length !== 1 || result.rejected?.length) {
+        throw Object.assign(new Error('SMTP_NOT_ACCEPTED'), { code: 'EENVELOPE' });
+      }
+      lastDeliveryTest = { accepted: true, at: new Date(now()).toISOString() };
+      response.json({ ok: true, smtpAccepted: true, reference, message: 'Door SMTP geaccepteerd. Controleer inbox en spammap.' });
+    } catch (error) {
+      lastDeliveryTest = { accepted: false, at: new Date(now()).toISOString() };
+      const code = ['EAUTH', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'EENVELOPE', 'EMESSAGE'].includes(error?.code) ? error.code : 'SMTP_ERROR';
+      log({ event: 'admin_delivery_test_failed', code });
+      response.status(502).json({ error: 'De testmail is niet door SMTP bevestigd. Controleer de mailinstellingen.', code });
+    }
+  });
+
   router.post('/admin/mail/retry', administrator, csrf, async (request, response) => {
     if (!auth.limiter.take(`mail:${request.adminSession.email}`, 6, 60000)) return response.status(429).json({ error: 'Wacht even voor een volgende verzendpoging.' });
     if (!mail.configured) return response.status(503).json({ error: 'E-mailverzending is nog niet geconfigureerd.', configured: false });

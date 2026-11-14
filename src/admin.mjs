@@ -124,6 +124,19 @@ document.addEventListener('click',async event=>{
 document.addEventListener('change',event=>{if(event.target.id==='admin-days'){state.days=Number(event.target.value);refresh();}if(event.target.id==='lead-status-filter'){state.status=event.target.value;state.nextCursor=null;loadLeads();}});
 document.addEventListener('submit',async event=>{
   const form=event.target;
+  if(form.id==='admin-testmail-form') {
+    event.preventDefault();if(!form.reportValidity())return;
+    const button=$('button[type="submit"]',form),result=$('#testmail-result',form);
+    button.disabled=true;button.textContent='Via Zonlio verzenden…';result.textContent='Eén testmail aanbieden bij SMTP…';
+    try {
+      const data=await adminApi('/mail/test-delivery',{method:'POST',body:{recipient:form.elements.recipient.value.trim(),confirmed:form.elements.confirmed.checked}});
+      if(!data.smtpAccepted)throw new Error('SMTP heeft de testmail niet geaccepteerd.');
+      result.textContent=`SMTP heeft test ${data.reference} geaccepteerd. Controleer inbox en spam; aflevering is nog niet bevestigd.`;
+      form.elements.confirmed.checked=false;
+      toast('De testmail is door SMTP geaccepteerd. Controleer je inbox en spammap.');
+    } catch(error){result.textContent=error.message||'Verzending is niet bevestigd.';toast(result.textContent);}
+    finally{if(button.isConnected){button.disabled=false;button.textContent='Verstuur één testmail';}}
+  }
   if(form.id==='login-form') {
     event.preventDefault();if(!form.reportValidity())return;
     const button=$('button[type="submit"]',form);button.disabled=true;button.textContent='Inloggen…';const error=$('#login-error');error.classList.add('hidden');
