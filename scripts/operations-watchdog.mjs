@@ -15,8 +15,16 @@ export async function observeOperations({origin='https://zonlio.nl',fetchImpl=fe
     const known=['not_required','never_run','overdue','current','unavailable'];
     const cronStatus=known.includes(data.operations?.cronStatus)?data.operations.cronStatus:'unavailable';
     const cronExpected=data.operations?.cronExpected===true;
+    // Report the actual persisted heartbeat even while cron monitoring is not yet required.
+    // This lets deployment observers distinguish an installed job from a configured-but-idle one.
+    const rawLast=data.operations?.lastMaintenanceAt;
+    const parsed=typeof rawLast==='string'?Date.parse(rawLast):NaN;
+    const lastMaintenanceAt=Number.isFinite(parsed)?new Date(parsed).toISOString():null;
+    const maintenanceRecorded=lastMaintenanceAt!==null;
+    const maintenanceAgeMinutes=maintenanceRecorded?Math.max(0,Math.floor((now()-parsed)/60000)):null;
     const sourcesReady=!cronExpected||(data.sources?.prices?.status==='ready'&&data.sources?.weather?.status==='ready');
-    return {...result,ok:data.ok===true&&databaseReady&&Boolean(data.operations)&&(!cronExpected||cronStatus==='current')&&sourcesReady,databaseReady,cronExpected,cronStatus,sourcesReady};
+    return {...result,ok:data.ok===true&&databaseReady&&Boolean(data.operations)&&(!cronExpected||cronStatus==='current')&&sourcesReady,
+      databaseReady,cronExpected,cronStatus,maintenanceRecorded,lastMaintenanceAt,maintenanceAgeMinutes,sourcesReady};
   } catch {return {...result,error:'HEALTH_UNAVAILABLE'};}
 }
 
