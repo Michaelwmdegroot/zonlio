@@ -8,7 +8,7 @@ Eigenaar van de repository: [Michaelwmdegroot](https://github.com/Michaelwmdegro
 
 De applicatie en de productieroutes zijn geïmplementeerd. De broncode gebruikt de eigen GitHub-repository en is ingericht voor een Node.js-app op Hostinger, met `main` als beoogde deploymentbranch. Een broncodepush bewijst nog geen geslaagde Hostinger-deployment.
 
-Op 14 november 2026 waren het hostingaccount, de productiedatabase en de authenticatie van `info@zonlio.nl` niet bereikbaar via de beschikbare koppelingen. Het domein, de productie-instellingen, een echte SMTP-aflevering en de periodieke onderhoudstaak zijn daarom nog niet als operationeel bevestigd. Zie [release](docs/RELEASE.md), [uitrol](docs/DEPLOYMENT.md) en [verificatie](docs/QA.md) voor de exacte stand.
+Op 14 november 2026 waren het hostingaccount, de productiedatabase en de authenticatie van `info@zonlio.nl` niet bereikbaar via de beschikbare koppelingen. Het domein, de productie-instellingen, een echte SMTP-aflevering en de periodieke onderhoudstaak zijn daarom nog niet als operationeel bevestigd. De GitHub-controles inclusief echte MySQL 8-integratie zijn geslaagd; de publieke interface en een testaanvraag zijn ook in de browser gecontroleerd. Zie [release](docs/RELEASE.md), [uitrol](docs/DEPLOYMENT.md) en [verificatie](docs/QA.md) voor de exacte stand.
 
 ## Wat de applicatie doet
 

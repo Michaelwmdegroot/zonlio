@@ -9,7 +9,11 @@ Datum: 14 november 2026. Deze registratie hoort bij de broncodeversie; hosting e
 - `npm run build`: geslaagd; uitsluitend publieke bestanden komen in `dist`.
 - `npm audit --omit=dev --audit-level=high`: geen kwetsbaarheden gevonden op het moment van deze controle.
 
-De GitHub Actions-uitkomst wordt na de remote releasecontrole vastgelegd. De workflow start een afzonderlijke MySQL 8-service en voert de integratietest expliciet uit. Deze test weigert niet-testdatabasenamen en bestaande aanvragen.
+## GitHub Actions en echte MySQL
+
+[Run 43533879604](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43533879604) voor commit `1eaf954b486e6a72d13441214f207e5b4be135d2` is **geslaagd**. Installatie, syntaxchecks, de volledige testsuite, productiebouw en dependency-audit zijn groen.
+
+De workflow heeft een echte **MySQL 8.0**-service gestart. De afzonderlijke integratiestap is ook geslaagd: schema-aanmaak met InnoDB, twaalf gelijktijdige idempotente aanvragen, status/historie/statistieken en transactionele rollback bij een outboxfout. De test draait op een expliciete, lege testdatabase en verzendt geen e-mail. Dit bewijst de driver- en SQL-integratie; de daadwerkelijke Hostinger-productiedatabase moet nog worden aangesloten.
 
 ## Betekenisvolle fout- en integratieproeven
 
@@ -29,8 +33,25 @@ De GitHub Actions-uitkomst wordt na de remote releasecontrole vastgelegd. De wor
 
 De daadwerkelijke servicemethode leverde op 14 november 2026 een geldige Nederlandse prijsdag met 96 kwartieren. De MET Norway-koppeling leverde een regionale verwachting met 90 tijdstappen voor Leiden. Een eerdere netwerkfout werd als niet-beschikbare data afgehandeld. Zie [DATA-SOURCES.md](DATA-SOURCES.md) voor de beperkte reikwijdte van deze proef en de bronnen.
 
+## Browsercontrole
+
+De beheerde preview werd later beschikbaar en is met de gebouwde applicatie gecontroleerd. De tijdelijke omgeving gebruikte een afzonderlijke lokale QA-database, zonder SMTP-configuratie. De testgegevens en QA-configuratie zijn na afloop verwijderd.
+
+- Desktopweergave: echte gepubliceerde prijzen, 24 uurwaarden en 96 kwartieren; prijsselectie en planner reageren.
+- Morgen: de interface toont **Nog niet gepubliceerd** en geeft geen fictieve planning.
+- 2027: de schuif van 50% naar 51% verandert het scenario van €560 naar €550; terugzetten herstelt het uitgangspunt.
+- Advies: kanaalkeuze wijzigt het verplichte veld en de exacte contacttekst. Een testaanvraag met een ongeldig-voor-aflevering `example.invalid`-adres wordt opgeslagen en geeft een ontvangstnummer. Het rekenprofiel bleef volgens de keuze ongedeeld. Er is geen echte mail verzonden.
+- Mobiele breedtes 320 en 375 pixels: Overzicht, Planner, Mijn 2027 en Batterij zijn via de ondernavigatie bereikbaar, zonder horizontale overflow. Dit is een CSS-viewportcontrole in een desktopbrowser, geen fysieke iPhone- of Android-test.
+- De beheerlogin is visueel geopend. De ingelogde beheerschermen zijn in deze browserronde niet doorlopen; beveiliging en beheerhandelingen zijn via de HTTP-/database-integratietests gecontroleerd.
+
+De screenshots tonen de werkelijke lokale interface met de opgehaalde prijsdag van 14 november 2026. Ze zijn geen bewijs dat `zonlio.nl` al deze versie serveert.
+
+![Zonlio desktop](screenshots/zonlio-desktop.jpg)
+
+![Zonlio mobiele viewport](screenshots/zonlio-mobile.jpg)
+
 ## Openstaande verificatie op de deployment
 
 De werkelijke Hostinger-runtime, productiedatabase, DNS/HTTPS, mailboxauthenticatie, inboxontvangst en geplande onderhoudstaak zijn nog niet bevestigd. Dit zijn afzonderlijke uitrolcontroles, geen bewijs uit de tests met testgegevens.
 
-De gedeelde browserpreview was tijdens deze bouwronde in gebruik door een ander project. Die sessie is niet vervangen. Voor de nieuwe release zijn daarom nog geen geslaagde visuele browsercontrole of nieuwe screenshots geclaimd. De tests op data- en servergedrag blijven daarvan gescheiden.
+De volledige gebruikersroute, ingelogde backoffice en echte aflevering moeten na de Hostinger-koppeling nogmaals op het uiteindelijke HTTPS-domein worden bevestigd.
