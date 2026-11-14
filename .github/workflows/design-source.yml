@@ -1,0 +1,19 @@
+name: Design source snapshot
+on:
+  push:
+    branches: [feat/zonlio-design-system]
+    paths: [.github/workflows/design-source.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export tracked files only
+        run: git archive --format=tar HEAD > /tmp/zonlio-source.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zonlio-design-source
+          path: /tmp/zonlio-source.tar
+          retention-days: 1
