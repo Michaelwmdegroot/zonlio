@@ -110,7 +110,9 @@ export async function createAppServer({rootDir=ROOT,preferDist=true,qaMode=false
   server.zonlio={backend,market,weather};return server;
 }
 
-const direct=process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href;
+// Hostinger imports its configured entry file; process.argv[1] can point to Hostinger's loader.
+// Production must always start, while development imports used by tests stay side-effect free.
+const direct=(process.env.NODE_ENV==='production')||Boolean(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href);
 if (direct) {
   const options={};const args=process.argv.slice(2);
   for(let i=0;i<args.length;i++) {
@@ -132,10 +134,29 @@ if (direct) {
     const frame=String(error?.stack||'').split(String.fromCharCode(10)).slice(1,3).map(s=>s.trim()).join(' | ').slice(0,300);
     console.error('ZONLIO_STARTUP_DIAGNOSTIC',JSON.stringify({stage,type,code,frame}));
   }
-  try {
-    const server=await createAppServer({qaMode:options.qaMode});
-    server.on('error',error=>{startupDiagnostic('listen',error);process.exitCode=1;});
-    server.listen(port,host,()=>console.log(`Zonlio ${VERSION} luistert op poort ${server.address().port}.`));
-    for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{server.close(()=>process.exit(0));setTimeout(()=>process.exit(1),10_000).unref();});
-  } catch(error) {startupDiagnostic('initialize',error);process.exitCode=1;}
+  // Open the listening socket before awaiting MySQL or any other service. Hostinger
+  // requires listen() within 3 seconds, including when importing our ESM entry module.
+  // Until the complete application is ready, every request fails closed with 503.
+  let application=null;
+  const listener=createServer((req,res)=>{
+    if(application) {application.emit('request',req,res);return;}
+    res.writeHead(503,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Retry-After':'3'});
+    res.end(JSON.stringify({error:'Zonlio wordt gestart.'}));
+  });
+  listener.requestTimeout=20_000;listener.headersTimeout=20_000;
+  listener.on('error',error=>{startupDiagnostic('listen',error);process.exitCode=1;});
+  listener.listen(port,host,()=>console.log('Zonlio HTTP-poort geopend; applicatie wordt geïnitialiseerd.'));
+  const initialize=createAppServer({qaMode:options.qaMode}).then(server=>{
+    application=server;
+    console.log(`Zonlio ${VERSION} luistert op poort ${listener.address().port}.`);
+  }).catch(error=>startupDiagnostic('initialize',error));
+  for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{
+    const watchdog=setTimeout(()=>process.exit(1),10_000);watchdog.unref();
+    listener.close(async()=>{
+      await initialize;
+      await application?.zonlio?.backend?.close?.().catch(()=>{});
+      clearTimeout(watchdog);process.exit(0);
+    });
+    listener.closeAllConnections();
+  });
 }
