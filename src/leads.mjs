@@ -10,7 +10,7 @@ export function openLeadForm({config,profile,sourcePath,summary,showDialog,onOpe
     return openHousingAdvice({config,profile,sourcePath,summary,showDialog,onOpened,
       onGeneral:()=>openLeadForm({config,profile,sourcePath,summary,showDialog,onOpened,generalOnly:true})});
   }
-  const receiver=config?.controller?.name||'Thuisbatterij Team B.V.';
+  const receiver=config?.controller?.name||'NIVO Groep Holland BV';
   if(config?.leadEnabled!==true||typeof config.contactTexts?.email!=='string'||typeof config.contactTexts?.phone!=='string') {
     showDialog(`<span class="badge">Persoonlijk advies</span><h2 id="dialog-title">Stel je vraag aan Zonlio.</h2><p class="dialog-text">Het aanvraagformulier is op dit moment niet beschikbaar. Je kunt ons bereiken via <a href="mailto:info@zonlio.nl">info@zonlio.nl</a>.</p><div class="detail-box">Je berekening blijft beschikbaar. Er is geen aanvraag verzonden.</div><div class="dialog-actions"><button class="button button-primary" data-action="close-dialog">Terug naar mijn inzicht</button><a class="button button-secondary" href="/contact">Contactgegevens</a></div>`);
     return;

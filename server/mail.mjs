@@ -46,6 +46,10 @@ export function createMail({ env = process.env, store, transport, logger = () =>
 
   return {
     configured,
+    async sendService(message) {
+      if (!configured) throw new Error("MAIL_NOT_CONFIGURED");
+      return smtp.sendMail({ ...message, disableFileAccess:true, disableUrlAccess:true });
+    },
     async verify() {
       if (!configured) return { ok: false, configured: false, error: 'E-mailverzending is nog niet geconfigureerd.' };
       try { await smtp.verify(); return { ok: true, configured: true }; }
@@ -63,6 +67,10 @@ export function createMail({ env = process.env, store, transport, logger = () =>
           // Recheck after claiming: queued work must respect withdrawal and expiry.
           if (!record.lead.contactRequested || record.lead.status === 'withdrawn' || Date.parse(record.lead.contactExpiresAt) <= now()) {
             await store.cancelMail(item); cancelled += 1; continue;
+          }
+          const quota = Number(env.SMTP_DAILY_LIMIT || 0);
+          if (Number.isInteger(quota) && quota > 0 && store.members && !await store.members.reserveBudget('lead', quota)) {
+            await store.deferMail(item); continue;
           }
           const result = await smtp.sendMail(messageFor(record.lead, item));
           if (Array.isArray(result?.rejected) && result.rejected.length) throw Object.assign(new Error('RECIPIENT_REJECTED'), { code: 'EENVELOPE' });

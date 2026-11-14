@@ -1,5 +1,8 @@
 # Zonlio — adviesaanvragen, gegevens en verzending
 
+> **Actuele aanvulling (groei-iteratie 2):** de eigenaar bevestigde NIVO Groep Holland BV, KvK 95227768, Lireweg 52, 2153 PH Nieuw-Vennep als exploitant en ontvanger. `info@zonlio.nl` is het privacycontact. Nieuwe teksten komen uit de centrale operatorconfiguratie; afwijkende oude configuratie blokkeert intake. Historische dossierbewijzen worden niet omgeschreven. Zie `GROWTH-02-2026-11-14.md` voor accounts, aparte dagplanservice en privacy-operatie. De oudere beschrijving hieronder bewaart de pilotgeschiedenis en is geen actuele ontvangerkeuze.
+
+
 Versie: 14 november 2026. Dit document beschrijft de implementatie en de gegevens die de exploitant vóór productie moet bevestigen.
 
 ## Exploitant en aanvraag

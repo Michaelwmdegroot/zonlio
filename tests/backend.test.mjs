@@ -45,7 +45,7 @@ async function setup(t, overrides = {}) {
     const form = await api('/form-token');
     return { requestId: randomUUID(), formToken: form.body.token, website: '', name: 'Test Aanvrager',
       channel: 'email', email: 'test@example.invalid', topic: 'battery', contactRequested: true,
-      consentVersion: '2026-11-14-v1', shareScenario: false, sourcePath: '2027', ...extra };
+      consentVersion: '2026-11-14-v2-nivo', shareScenario: false, sourcePath: '2027', ...extra };
   }
   const login = async () => {
     const result = await api('/admin/login', { method: 'POST', body: { email: env.ADMIN_EMAIL, password } });
@@ -165,7 +165,7 @@ test('woningadvies heeft een afzonderlijke gesloten gate, ook met werkende legac
 });
 
 test('woningadvies: complete intake, bewijs, ontdubbeling en geen impliciete scenario-overdracht', async t => {
-  const f = await setup(t, { env: { HOUSING_ADVICE_ENABLED: 'true', LEAD_CONTROLLER_CONFIRMED: 'true', LEAD_CONTROLLER_NAME: 'NIVO testontvanger' } });
+  const f = await setup(t, { env: { HOUSING_ADVICE_ENABLED: 'true', LEAD_CONTROLLER_CONFIRMED: 'true', LEAD_CONTROLLER_NAME: 'NIVO Groep Holland BV' } });
   const config = (await f.api('/config')).body;
   assert.equal(config.housingAdviceEnabled, true);
   const input = await f.application({ channel: 'phone', phone: '06 1234 5678', postcode: '2311 AB',
@@ -184,16 +184,16 @@ test('woningadvies: complete intake, bewijs, ontdubbeling en geen impliciete sce
   assert.equal(lead.contactPreference, 'afternoon'); assert.equal(lead.scenario, null);
   assert.equal(lead.consentVersion, config.housingConsentVersion);
   assert.equal(lead.contactText, config.housingContactText);
-  assert.equal(lead.controller.name, 'NIVO testontvanger');
+  assert.equal(lead.controller.name, 'NIVO Groep Holland BV');
   assert.equal(lead.revision, 0);
   assert.equal((await f.backend.store.mailStats()).pending, 2);
   assert.doesNotMatch(JSON.stringify(f.logs), /Teststraat|12345678|Test Aanvrager/);
 });
 
 test('woningadvies weigert ontbrekende NAW/telefoon, verkeerde toestemming en extra marketingvelden', async t => {
-  const f = await setup(t, { env: { HOUSING_ADVICE_ENABLED: 'true', LEAD_CONTROLLER_CONFIRMED: 'true', LEAD_CONTROLLER_NAME: 'NIVO testontvanger' } });
+  const f = await setup(t, { env: { HOUSING_ADVICE_ENABLED: 'true', LEAD_CONTROLLER_CONFIRMED: 'true', LEAD_CONTROLLER_NAME: 'NIVO Groep Holland BV' } });
   const input = await f.application({ channel: 'phone', phone: '+31612345678', postcode: '2311AB',
-    housing: { street: 'Teststraat', houseNumber: '12', city: 'Teststad' }, contactPreference: 'any', consentVersion: '2026-11-14-housing-v1' });
+    housing: { street: 'Teststraat', houseNumber: '12', city: 'Teststad' }, contactPreference: 'any', consentVersion: '2026-11-14-housing-v2-nivo' });
   for (const change of [{housing:undefined},{postcode:'2311'},{phone:''},{channel:'email'},
     {consentVersion:'2026-11-14-v1'},{marketing:true},{contactRequested:false},{housing:{...input.housing,verified:true}}]) {
     const response = await f.api('/housing-leads', { method: 'POST', body: {...input,...change} });
@@ -202,8 +202,8 @@ test('woningadvies weigert ontbrekende NAW/telefoon, verkeerde toestemming en ex
   assert.equal((await f.backend.store.stats(7)).totals.leads, 0);
 });
 
-test('woningadvies verlangt expliciete controller en bevestiging naast de eigen flag', async t => {
-  for (const extra of [{}, {LEAD_CONTROLLER_NAME:'NIVO test'}, {LEAD_CONTROLLER_CONFIRMED:'true'}, {LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'   '}]) {
+test('woningadvies vereist bevestiging en blokkeert afwijkende ontvangerconfiguratie', async t => {
+  for (const extra of [{}, {LEAD_CONTROLLER_NAME:'NIVO test'}, {LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'Thuisbatterij Team B.V.'}, {LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'   '}]) {
     const f = await setup(t, {env:{HOUSING_ADVICE_ENABLED:'true',...extra}});
     assert.equal((await f.api('/config')).body.housingAdviceEnabled, false);
   }

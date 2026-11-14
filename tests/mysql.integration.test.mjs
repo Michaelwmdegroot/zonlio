@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { createPool } from 'mysql2/promise';
+import { cleanEnergyProfile, DAYMAIL_POLICY_VERSION, DAYMAIL_TEXT } from '../src/member-schema.mjs';
 import { createStore, StoreConflict } from '../server/store.mjs';
 
 const enabled = process.env.MYSQL_TEST === '1';
@@ -130,6 +131,40 @@ test('echte MySQL: schema, transacties, idempotentie en beheerstatistieken', {
     finally{await pool.query(`RENAME TABLE \`${backupTable}\` TO outbox`);renamed=false;}
     const [remaining]=await pool.execute('SELECT id FROM leads WHERE request_id=?',[failed.requestId]);assert.equal(remaining.length,0);
     const [orphans]=await pool.execute('SELECT i.lead_id FROM lead_intakes i LEFT JOIN leads l ON l.id=i.lead_id WHERE l.id IS NULL');assert.equal(orphans.length,0);
+  });
+
+  await t.test('Mijn Zonlio: bevestiging, sessies, revisies, quota en afmelden op echte MySQL', async () => {
+    const repo=store.members;const digest=value=>createHash('sha256').update(value).digest('hex');
+    let issued;const email='members-mysql@example.invalid';
+    const tokenFor=(id,purpose)=>{issued=`${id}.${purpose}.synthetic-no-live-token`;return issued;};
+    const profile=cleanEnergyProfile({devices:['washing'],scenario:{annualUse:4321}});
+    const queued=await Promise.all(Array.from({length:8},()=>repo.queueChallenge({purpose:'subscribe',email,payload:{edition:'evening',profile},tokenFor})));
+    assert.equal(queued.filter(Boolean).length,1,'Per-address limits serialize across concurrent MySQL connections.');
+    const token=issued;const consume=()=>repo.consumeChallenge({tokenHash:digest(token),sessionHash:digest('qa-session'),sessionExpires:new Date(Date.now()+3600000).toISOString(),emptyProfile:cleanEnergyProfile({}),accountVersion:'qa-account',daymailVersion:DAYMAIL_POLICY_VERSION,daymailText:DAYMAIL_TEXT});
+    const confirmed=await Promise.all(Array.from({length:6},consume));assert.equal(confirmed.filter(Boolean).length,1);
+    const id=confirmed.find(Boolean).member.id;
+    try {
+      const row=await repo.get(id);assert.equal(row.subscription.status,'active');assert.equal(row.member.profile.scenario.annualUse,4321);
+      const changes=await Promise.allSettled([4000,5000].map(annualUse=>repo.saveProfile(id,cleanEnergyProfile({...profile,scenario:{annualUse}}),0)));
+      assert.equal(changes.filter(r=>r.status==='fulfilled').length,1);assert.equal(changes.find(r=>r.status==='rejected').reason.code,'MEMBER_CONFLICT');
+      const quota=await Promise.all(Array.from({length:15},()=>repo.reserveBudget('daily',10)));assert.equal(quota.filter(Boolean).length,8);
+      const lease=await Promise.all(Array.from({length:5},()=>repo.acquireTask('scheduler')));assert.equal(lease.filter(Boolean).length,1);await repo.finishTask('scheduler',lease.find(Boolean),{qa:true});
+      const date='2099-01-01';const subs=await repo.dueSubscribers('evening',date);assert.equal(subs.length,1);
+      const jobs=await Promise.all(Array.from({length:8},()=>repo.queuePlan(subs[0],date,{status:'available',validUntil:'2099-01-01T08:00:00.000Z'})));assert.equal(jobs.filter(r=>r.changes).length,1);
+      const claims=(await Promise.all([repo.claimMail(),repo.claimMail()])).flat();assert.equal(new Set(claims.map(r=>r.id)).size,claims.length,'No overlapping claims');
+      await repo.unsubscribe(id,DAYMAIL_POLICY_VERSION,DAYMAIL_TEXT);
+      for(const item of claims.filter(r=>r.kind==='daily'))assert.equal(await repo.mailContext(item),null);
+      assert.equal((await repo.get(id)).subscription.status,'unsubscribed');
+    } finally {await repo.deleteMember(id);await pool.execute('DELETE FROM zonlio_send_budget');}
+    assert.equal((await repo.get(id)).member,null);
+  });
+
+  await t.test('Mijn Zonlio: outbox failure rolls back challenge on MySQL', async () => {
+    const temp=`member_mail_test_${randomUUID().replaceAll('-','')}`;
+    await pool.query(`RENAME TABLE zonlio_member_mail TO \`${temp}\``);
+    try {await assert.rejects(store.members.queueChallenge({purpose:'login',email:'rollback-member@example.invalid',payload:{},tokenFor:id=>id}));}
+    finally {await pool.query(`RENAME TABLE \`${temp}\` TO zonlio_member_mail`);}
+    const [rows]=await pool.execute('SELECT id FROM zonlio_challenges WHERE email=?',['rollback-member@example.invalid']);assert.equal(rows.length,0);
   });
 
 });

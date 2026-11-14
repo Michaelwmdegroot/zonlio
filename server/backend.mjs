@@ -1,3 +1,6 @@
+import { createPortalRouter } from './portal.mjs';
+import { OPERATOR, operatorConfiguration } from './operator.mjs';
+import { createMemberService } from './members.mjs';
 import express from 'express';
 import { domainToASCII } from 'node:url';
 import { createStore, StoreConflict, LeadUpdateConflict } from './store.mjs';
@@ -5,7 +8,7 @@ import { HOUSING_CONSENT_VERSION, LEAD_STATUS_LABELS, housingFieldErrors, follow
 import { createAuth, sha256 } from './auth.mjs';
 import { createMail } from './mail.mjs';
 
-export const CONSENT_VERSION = '2026-11-14-v1';
+export const CONSENT_VERSION = '2026-11-14-v2-nivo';
 const PATHS = ['overzicht', 'planner', '2027', 'batterij'];
 const TOPICS = ['battery', 'solar', 'contract', 'charging', 'heatpump', 'other'];
 const STATUSES = Object.keys(LEAD_STATUS_LABELS);
@@ -105,7 +108,7 @@ function validateLead(body, { auth, controller, contactTexts, housing = false })
 }
 
 /** All routes are relative to /api. The parent app installs its bounded JSON parser. */
-export async function createBackend({ env = process.env, now = () => Date.now(), logger, mailTransport } = {}) {
+export async function createBackend({ env = process.env, now = () => Date.now(), logger, mailTransport, market } = {}) {
   const log = typeof logger === 'function' ? logger : () => {};
   let store = null;
   try { store = await createStore({ env, now }); }
@@ -131,15 +134,21 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   const mail = createMail({ env, store, transport: mailTransport, logger: log, now });
   const router = express.Router();
   const jobs = new Set();
-  const configuredController = text(env.LEAD_CONTROLLER_NAME, 200);
-  const controller = { name: configuredController || 'Thuisbatterij Team B.V.', email: env.LEAD_CONTROLLER_EMAIL || 'info@zonlio.nl' };
+  const operator = operatorConfiguration(env);
+  const controller = OPERATOR;
+  const configuredController = operator.matches ? controller.name : null;
   const contactTexts = Object.fromEntries(['email', 'phone'].map((channel) => [channel,
     `Met deze aanvraag vraag je ${controller.name} om binnen 30 dagen ${channel === 'phone' ? 'telefonisch' : 'per e-mail'} te reageren over het gekozen onderwerp. Zonlio gebruikt daarvoor je ingevulde contactgegevens en, als je dat kiest, je berekening. Je kunt je aanvraag intrekken via ${controller.email}. Dit is geen nieuwsbriefinschrijving.`]));
-  const enabled = Boolean(store && (!auth.production || (env.LEAD_CONTROLLER_CONFIRMED === 'true' && auth.configured)));
+  const enabled = Boolean(store && operator.matches && (!auth.production || (operator.confirmed && auth.configured)));
   // A separate, explicit gate: deployment or design approval never enables the new intake.
   const housingAdviceEnabled = enabled && env.HOUSING_ADVICE_ENABLED === 'true'
-    && env.LEAD_CONTROLLER_CONFIRMED === 'true' && Boolean(configuredController);
+    && operator.confirmed && Boolean(configuredController);
   const housingContactText = `Ik vraag ${controller.name} om binnen 30 dagen telefonisch te reageren over mijn gekozen woningvraag. Hiervoor worden mijn contactgegevens en woningadres gebruikt en alleen als ik dat kies mijn rekenprofiel. Mijn voorkeursmoment is geen bevestigde afspraak. Ik kan mijn verzoek intrekken via ${controller.email}. Dit is geen nieuwsbriefinschrijving of toestemming voor algemene marketing.`;
+  const portal = createPortalRouter({env,store,auth,now});
+  const memberService = createMemberService({env,store,auth,mail,market,now,onQueued:()=>{
+    const job=memberService.processMail({limit:1}).catch(()=>log({event:'member_mail_batch_failed'}));
+    jobs.add(job);job.finally(()=>jobs.delete(job));
+  }});
   const analyticsEnabled = Boolean(store && env.ANALYTICS_ENABLED !== 'false' && (!auth.production || auth.secretConfigured));
   const disabledReason = !store ? 'Aanvragen kunnen tijdelijk niet worden opgeslagen. Probeer het later opnieuw.'
     : !enabled ? 'Het contactformulier is nog niet geactiveerd. Je kunt contact opnemen via info@zonlio.nl.' : null;
@@ -168,9 +177,11 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   const mailStatus = async () => ({ configured: mail.configured, ...(store ? await store.mailStats() : { pending: 0, failed: 0, sent: 0, lastSuccessAt: null }) });
 
   router.use((_request, response, next) => { response.setHeader('Cache-Control', 'no-store'); next(); });
+  router.use('/portal', portal.router);
+  router.use('/member', memberService.router);
   router.get('/config', (_request, response) => response.json({ version: env.APP_VERSION || '0.2.0', leadEnabled: enabled,
     disabledReason, controller, consentVersion: CONSENT_VERSION, contactTexts, analyticsEnabled, adminConfigured: auth.configured,
-    housingAdviceEnabled, housingConsentVersion: HOUSING_CONSENT_VERSION, housingContactText }));
+    housingAdviceEnabled, operatorConfigured:operator.matches, members:memberService.config(), housingConsentVersion: HOUSING_CONSENT_VERSION, housingContactText }));
   router.get('/form-token', (request, response) => {
     if (!enabled) return response.status(503).json({ error: disabledReason });
     if (!auth.limiter.take(`form:${auth.requestKey(request)}`, 120, 10 * 60000)) return response.status(429).json({ error: 'Probeer het over enkele minuten opnieuw.' });
@@ -228,7 +239,7 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   router.get('/admin/stats', administrator, async (request, response) => {
     const days = Number(request.query.days || 30);
     if (![7, 30, 90].includes(days)) return response.status(422).json({ error: 'Kies 7, 30 of 90 dagen.' });
-    response.json({ ...await store.stats(days), mail: await mailStatus() });
+    response.json({ ...await store.stats(days), mail: await mailStatus(), members:{...await store.members.stats(),...memberService.config()},portal:{enabled:portal.enabled,...await store.portalStats()} });
   });
   router.get('/admin/leads', administrator, async (request, response) => {
     const { status, cursor } = request.query;
@@ -272,7 +283,7 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     if (!auth.cronAllowed(request)) return response.status(401).json({ error: 'Niet geautoriseerd.' });
     if (!store) return response.status(503).json({ error: 'Database niet beschikbaar.' });
     if (!auth.limiter.take('maintenance', 6, 60000)) return response.status(429).json({ error: 'Wacht even voor een volgende taak.' });
-    response.json({ ...await mail.processBatch({ limit: 3 }), mail: await mailStatus() });
+    response.json({ ...await mail.processBatch({ limit: 2 }), mail: await mailStatus(), members:await memberService.maintenance() });
   });
 
   router.use((error, _request, response, _next) => {
@@ -283,8 +294,8 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   });
 
   return {
-    router, store, controller: Object.freeze({ ...controller }), ready: Boolean(store),
-    health: () => ({ databaseReady: Boolean(store), adminConfigured: auth.configured, mailConfigured: mail.configured, leadEnabled: enabled, housingAdviceEnabled }),
+    router, store, memberService, controller: Object.freeze({ ...controller }), ready: Boolean(store),
+    health: () => ({ databaseReady: Boolean(store), adminConfigured: auth.configured, mailConfigured: mail.configured, leadEnabled: enabled, housingAdviceEnabled, operatorConfigured:operator.matches, portalExportEnabled:portal.enabled, memberAccountsEnabled:memberService.config().accountsEnabled, daymailSignupEnabled:memberService.config().subscriptionsEnabled, daymailSendEnabled:memberService.config().dailySendEnabled }),
     async recordPageView(path = 'overzicht') {
       if (!store || !PATHS.includes(path)) return;
       try { await store.recordPageView(path); } catch { log({ event: 'page_count_failed' }); }

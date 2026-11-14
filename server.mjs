@@ -10,6 +10,7 @@ import { createWeatherService, WEATHER_REGIONS } from './server/weather.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const VERSION = '1.0.0';
+const RELEASE_ID = 'growth-02-20261114';
 const POLICY = ["default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data:", "font-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "frame-ancestors 'none'", "form-action 'self'"].join('; ');
 
 /** Render only the explicit public-company marker; never evaluate a template. */
@@ -29,7 +30,7 @@ export function safeRequestPath(rawUrl = '/') {
 }
 
 function assetFor(path) {
-  const pages = { '/':'index.html', '/index.html':'index.html', '/admin':'admin.html', '/admin/':'admin.html', '/admin.html':'admin.html', '/contact':'pages/contact.html', '/contact/':'pages/contact.html', '/privacy':'pages/privacy.html', '/privacy/':'pages/privacy.html' };
+  const pages = { '/':'index.html', '/index.html':'index.html', '/admin':'admin.html', '/admin/':'admin.html', '/admin.html':'admin.html', '/contact':'pages/contact.html', '/contact/':'pages/contact.html', '/privacy':'pages/privacy.html', '/privacy/':'pages/privacy.html', '/mijn':'pages/member.html', '/mijn/':'pages/member.html' };
   if (pages[path]) return { name:pages[path], type:'text/html; charset=utf-8' };
   if (/^\/src\/[a-zA-Z0-9][a-zA-Z0-9._-]*\.(mjs|css)$/.test(path)) return { name:path.slice(1), type:path.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8' };
   if (/^\/public\/[a-zA-Z0-9][a-zA-Z0-9._-]*\.(svg|png|webp|ico|webmanifest)$/.test(path)) {
@@ -48,9 +49,9 @@ export async function createAppServer({rootDir=ROOT,preferDist=true,qaMode=false
   const assetRoot=preferDist&&existsSync(join(distRoot,'index.html'))?realpathSync(distRoot):projectRoot;
   const isProduction=env.NODE_ENV==='production';
   const qa=qaMode&&!isProduction;
-  const backend=providedBackend??await createBackend({env,weatherRegions:WEATHER_REGIONS});
   const market=providedMarket??createMarketService();
   const weather=providedWeather??createWeatherService();
+  const backend=providedBackend??await createBackend({env,weatherRegions:WEATHER_REGIONS,market});
   const app=express();
   app.disable('x-powered-by');
   if (/^[1-3]$/.test(env.TRUST_PROXY_HOPS||'')) app.set('trust proxy',Number(env.TRUST_PROXY_HOPS));
@@ -65,11 +66,11 @@ export async function createAppServer({rootDir=ROOT,preferDist=true,qaMode=false
     if (isProduction) res.setHeader('Strict-Transport-Security','max-age=31536000');
     if (path===null) return res.status(400).json({error:'Ongeldig pad.'});
     req.safePath=path;
-    if (path.startsWith('/admin')||path.startsWith('/api/')||path.startsWith('/__qa/')) res.setHeader('X-Robots-Tag','noindex, nofollow');
+    if (path.startsWith('/admin')||path.startsWith('/api/')||path.startsWith('/__qa/')||path==='/mijn'||path==='/mijn/') res.setHeader('X-Robots-Tag','noindex, nofollow');
     next();
   });
   app.use(express.json({limit:'24kb',strict:true}));
-  app.get('/api/health',(_req,res)=>res.json({ok:true,version:VERSION,mode:'live',services:backend.health(),sources:{prices:market.getStatus(),weather:weather.getStatus()}}));
+  app.get('/api/health',(_req,res)=>res.json({ok:true,version:VERSION,releaseId:RELEASE_ID,mode:'live',services:backend.health(),sources:{prices:market.getStatus(),weather:weather.getStatus()}}));
   app.get('/api/prices',async(req,res)=>{
     if (typeof req.query.date!=='string') return res.status(400).json({error:'Geef één datum op als JJJJ-MM-DD.'});
     try {res.json(await market.getDay(req.query.date));}

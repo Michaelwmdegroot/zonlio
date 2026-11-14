@@ -1,5 +1,5 @@
 /** Shared public field contract. No credentials, personal data or business scoring. */
-export const HOUSING_CONSENT_VERSION = '2026-11-14-housing-v1';
+export const HOUSING_CONSENT_VERSION = '2026-11-14-housing-v2-nivo';
 export const LEAD_STATUS_LABELS = Object.freeze({
   new: 'Nieuw', assigned: 'Toegewezen', attempted: 'Contactpoging', contacted: 'Bereikt',
   qualified: 'Gekwalificeerd', appointment: 'Afspraak', quoted: 'Offerte',

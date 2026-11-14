@@ -1,3 +1,5 @@
+import { OPERATOR } from './operator.mjs';
+import { createMemberRepository } from './member-store.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -12,6 +14,11 @@ export class LeadUpdateConflict extends Error {
 }
 
 const SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS portal_events (
+    id VARCHAR(36) PRIMARY KEY, unique_key VARCHAR(80) NOT NULL UNIQUE, lead_id VARCHAR(36) NOT NULL,
+    revision INTEGER NOT NULL, status VARCHAR(16) NOT NULL, created_at VARCHAR(27) NOT NULL,
+    locked_until VARCHAR(27), claim_token VARCHAR(36), portal_reference VARCHAR(120), accepted_at VARCHAR(27)
+  )`,
   `CREATE TABLE IF NOT EXISTS leads (
     id VARCHAR(36) PRIMARY KEY, reference VARCHAR(32) NOT NULL UNIQUE,
     request_id VARCHAR(36) NOT NULL UNIQUE, payload_hash VARCHAR(64) NOT NULL,
@@ -189,10 +196,13 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
     }
   }
   catch (error) { await adapter.close(); throw error; }
+  let members;
+  try { members = await createMemberRepository({ adapter, now }); }
+  catch (error) { await adapter.close(); throw error; }
   const stamp = () => new Date(now()).toISOString();
   const insertIgnore = adapter.dialect === 'mysql' ? 'INSERT IGNORE' : 'INSERT OR IGNORE';
   const store = {
-    dialect: adapter.dialect,
+    dialect: adapter.dialect, members,
     close: () => adapter.close(),
 
     async createLead(input, payloadHash) {
@@ -224,13 +234,15 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         if (input.intake) await db.run('INSERT INTO lead_intakes (lead_id,kind,address_json,contact_preference,created_at) VALUES (?,?,?,?,?)',
           [id, input.intake.kind, JSON.stringify(input.intake.address), input.intake.contactPreference, createdAt]);
         await db.run('INSERT INTO lead_followups (lead_id,owner_label,next_action,next_action_on,revision) VALUES (?,?,?,?,?)',
-          [id, '', '', null, 0]);
+          [id, input.intake && input.controller.name === OPERATOR.name ? 'Pim' : '', '', null, 0]);
         await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',
           [randomUUID(), id, 'new', 'Adviesaanvraag ontvangen.', 'website', createdAt]);
         for (const kind of ['internal_notification', ...(input.email ? ['customer_confirmation'] : [])]) {
           await db.run(`INSERT INTO outbox (id,unique_key,lead_id,kind,status,attempts,next_attempt_at,created_at)
             VALUES (?,?,?,?,?,?,?,?)`, [randomUUID(), `${id}:${kind}:v1`, id, kind, 'pending', 0, createdAt, createdAt]);
         }
+        if (input.intake && input.controller.name === OPERATOR.name) await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',
+          [randomUUID(),`${id}:0`,id,0,'pending',createdAt]);
         return { lead: toLead(await db.get(`${LEAD_QUERY} WHERE l.id = ?`, [id])), duplicate: false };
       }, true);
       try { return await save(); }
@@ -299,10 +311,32 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',
           [randomUUID(), id, status, [note, followUp ? `Opvolging: ${next.owner || 'niet toegewezen'}; ${next.nextAction || 'geen actie'}${next.nextActionOn ? ' — ' + next.nextActionOn : ''}` : ''].filter(Boolean).join('\n'), actor, at]);
         if (status === 'withdrawn') await db.run("UPDATE outbox SET status='cancelled',locked_until=NULL,claim_token=NULL,last_error='CONTACT_WITHDRAWN' WHERE lead_id=? AND status IN ('pending','processing','failed')", [id]);
+        if (existing.kind === 'housing' && existing.controller.name === OPERATOR.name) await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',
+          [randomUUID(),`${id}:${existing.revision+1}`,id,existing.revision+1,'pending',at]);
         return toLead(await db.get(`${LEAD_QUERY} WHERE l.id=?`, [id]));
       }, true);
     },
 
+    async claimPortalEvents(limit=5) {
+      return adapter.work(async db=>{
+        const at=stamp();
+        const rows=await db.all(`SELECT * FROM portal_events WHERE status='pending' OR (status='leased' AND locked_until<=?) ORDER BY created_at,id LIMIT ${Math.min(10,Math.max(1,limit))}${adapter.dialect==='mysql'?' FOR UPDATE':''}`,[at]);
+        for(const row of rows) {row.claim_token=randomUUID();await db.run("UPDATE portal_events SET status='leased',claim_token=?,locked_until=? WHERE id=?",[row.claim_token,new Date(now()+120000).toISOString(),row.id]);}
+        return rows;
+      },true);
+    },
+    async ackPortalEvent({id,claimToken,portalReference}) {
+      return adapter.work(async db=>{
+        const row=await db.get(`SELECT * FROM portal_events WHERE id=?${adapter.dialect==='mysql'?' FOR UPDATE':''}`,[id]);
+        if(!row||row.claim_token!==claimToken)return false;
+        if(row.status==='accepted')return row.portal_reference===portalReference;
+        if(row.status!=='leased'||row.locked_until<=stamp())return false;
+        await db.run("UPDATE portal_events SET status='accepted',portal_reference=?,accepted_at=?,locked_until=NULL WHERE id=?",[portalReference,stamp(),id]);return true;
+      },true);
+    },
+    async portalStats() {
+      return adapter.work(async db=>Object.fromEntries((await db.all('SELECT status,COUNT(*) AS total FROM portal_events GROUP BY status')).map(r=>[r.status,Number(r.total)])));
+    },
     async createSession(idHash, email, expiresAt) {
       await adapter.work((db) => db.run('INSERT INTO admin_sessions (id_hash,email,created_at,expires_at) VALUES (?,?,?,?)',
         [idHash, email, stamp(), expiresAt]));
@@ -387,6 +421,9 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         }
         return rows;
       }, true);
+    },
+    async deferMail(item) {
+      await adapter.work(db=>db.run("UPDATE outbox SET status='pending',attempts=attempts-1,next_attempt_at=?,claim_token=NULL,locked_until=NULL,last_error='SEND_BUDGET' WHERE id=? AND claim_token=? AND status='processing'",[new Date(now()+15*60000).toISOString(),item.id,item.claim_token]));
     },
     async cancelMail(item, reason = 'CONTACT_NOT_ACTIVE') {
       await adapter.work(db => db.run("UPDATE outbox SET status='cancelled',locked_until=NULL,claim_token=NULL,last_error=? WHERE id=? AND claim_token=?",

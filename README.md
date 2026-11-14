@@ -1,5 +1,9 @@
 # Zonlio
 
+## Groei-iteratie 2 — accounts en dagplan
+
+De eigenaar heeft NIVO Groep Holland BV (KvK 95227768) als exploitant bevestigd. Nieuw: `/mijn`, eenmalige accountlinks, afzonderlijke dagplaninschrijving met bevestiging, profiel/voorkeuren/export/verwijderen, begrensde dagmailqueue en de **Zonlio-zijde** van Portal claim/ack. Portal voert later de Odoo-overdracht uit. Nieuwe functies blijven standaard uit; geen productie-inbox-/cron-/Portalbewijs uit lokale tests afleiden. Lees [actuele implementatie en vrijgave](docs/GROWTH-02-2026-11-14.md) en [Portal-contract](docs/PORTAL-CONTRACT-v1.md). Oudere statussecties hieronder zijn historisch.
+
 **Jouw stroom. Helder in beeld.** Een lichte, mobiele Nederlandse stroomapp voor zonnepaneelbezitters, met gepubliceerde kwartierprijzen, een verbruiksplanner, scenario's voor 2027 en een thuisbatterij, plus een afgeschermde backoffice voor adviesaanvragen.
 
 Eigenaar van de repository: [Michaelwmdegroot](https://github.com/Michaelwmdegroot). Beoogd domein: **https://zonlio.nl**. Contact: **info@zonlio.nl**.

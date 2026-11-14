@@ -250,7 +250,7 @@ function rememberContractDraft(){const form=$('#contract-form');if(!form)return;
 function showProfile() {
   if(!contractDraft)contractDraft={...state.dayContract};
   const c=contractDraft;
-  showDialog(`<h2 id="dialog-title">Mijn huis</h2><p class="dialog-text">Maak de dagprijzen persoonlijk met je eigen contract. Deze instellingen staan los van de aannames in je 2027-scenario.</p>
+  showDialog(`<p class="mini-note"><a href="/mijn">Naar Mijn Zonlio · online bewaren en dagmail</a></p><h2 id="dialog-title">Mijn huis</h2><p class="dialog-text">Maak de dagprijzen persoonlijk met je eigen contract. Deze instellingen staan los van de aannames in je 2027-scenario.</p>
     <form id="contract-form"><div class="form-section-title">Tarief voor je dagoverzicht</div><div class="segmented contract-type"><button type="button" data-contract="dynamic" class="${c.type==='dynamic'?'selected':''}" aria-pressed="${c.type==='dynamic'}">Dynamisch</button><button type="button" data-contract="fixed" class="${c.type==='fixed'?'selected':''}" aria-pressed="${c.type==='fixed'}">Vast / variabel</button></div>
     <p class="mini-note">${c.type==='dynamic'?'Neem opslag en energiebelasting over uit je actuele contract, vóór btw. We vullen geen belastingbedrag voor je in.':'Neem je actuele afnametarief over, inclusief toepasselijke belastingen en btw. Dit tarief blijft gedurende de dag gelijk.'}</p>
     <div class="form-grid">${c.type==='dynamic'?contractField('markup','Leveranciersopslag, ex. btw','€/kWh')+contractField('energyTax','Energiebelasting, ex. btw','€/kWh',{min:0})+contractField('vat','Btw over afname','%',{min:0,max:100,step:.01}):contractField('importRate','Afnametarief, inclusief','€/kWh')}</div>

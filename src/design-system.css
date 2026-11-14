@@ -496,3 +496,41 @@ dialog::backdrop { background: rgb(20 42 76 / 24%); backdrop-filter: blur(7px); 
 /* A wide lead table scrolls inside its own card, never the page. */
 .admin-table-scroll { width: 100%; min-width: 0; contain: inline-size layout; }
 .daily-table:not([open]) > .admin-table-scroll { display: none; }
+
+/* Mijn Zonlio — the same design tokens, no independent account theme. */
+.member-page .main { padding-inline:24px; }
+.member-card { display:flex;flex-direction:column;gap:18px;min-width:0; }
+.member-card form { display:flex;flex-direction:column;gap:18px;min-width:0; }
+.member-card p { color:var(--z-text-secondary); }
+.member-card .button { align-self:flex-start; }
+.member-card input:not([type=checkbox]),.member-card select { width:100%;min-height:46px;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-control,13px);background:var(--surface);color:var(--ink); }
+.member-consent,.member-option { display:flex;align-items:flex-start;gap:10px;line-height:1.5; }
+.member-consent input,.member-option input { width:20px;height:20px;min-width:20px;margin-top:2px;accent-color:var(--zonlio-blue); }
+.member-consent { font-size:13px; }
+.member-devices { border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:14px; }
+.member-devices legend { margin-bottom:12px;font-weight:600;font-size:13px; }
+.member-status { padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:var(--blue-soft);font-size:13px; }
+.member-section-heading,.member-account-bar { display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap; }
+.member-account-bar { margin-bottom:24px; }
+.member-account-bar p { overflow-wrap:anywhere; }
+.member-stack { display:flex;flex-direction:column;gap:20px;min-width:0; }
+.member-actions { display:flex;flex-wrap:wrap;gap:10px; }
+.member-notice:empty { display:none; }
+.member-notice { margin-bottom:20px;padding:16px;border:1px solid var(--line);border-radius:13px;background:var(--surface); }
+.member-honeypot { position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%); }
+.member-confirm { max-width:640px;margin:auto; }
+.member-plan-list { margin:16px 0; }
+.member-plan-list > div { display:flex;justify-content:space-between;gap:16px;padding:16px 0;border-bottom:1px solid var(--line); }
+.member-plan-list small { display:block;color:var(--z-text-secondary);font-weight:400;margin-top:4px; }
+.member-plan-list strong { text-align:right;white-space:nowrap;color:var(--zonlio-blue); }
+.member-admin-summary { margin-top:20px; }
+@media (max-width:600px) {
+  .member-page .main { padding-inline:16px; }
+  .member-page .header-inner { padding-inline:16px;gap:12px; }
+  .member-page .brand-logo { width:110px;height:auto; }
+  .member-page .app-header .button { padding:9px 12px;font-size:12px; }
+  .member-card { padding:20px; }
+  .member-card .form-grid { grid-template-columns:1fr; }
+  .member-card input,.member-card select { font-size:16px; }
+  .member-page .app-footer { padding-bottom:24px; }
+}

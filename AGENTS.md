@@ -15,3 +15,7 @@ Lees eerst `docs/PILOT-HANDOFF-2026-11-14.md` en de actuele QA-/release-notities
 Geen geheimen of persoonsgegevens in Git, screenshots of issues. Geen nieuwe betaalde diensten. Leadopvang blijft uit tot de P0-controles én expliciet eigenaarakkoord; een visuele goedkeuring is geen akkoord voor commerciële activatie.
 
 Voer `npm run check`, `npm test`, `npm run build` en relevante MySQL-integratietests uit. Noteer of bewijs lokaal, gesimuleerd, CI, eigenaargerapporteerd of daadwerkelijk productie is. Werk documentatie bij na iedere substantiële fase.
+
+## Bevestigd na groei-iteratie 2
+
+Lees `docs/GROWTH-02-2026-11-14.md` en `docs/PORTAL-CONTRACT-v1.md`. Exploitant/ontvanger is NIVO Groep Holland BV; persoonlijke eigenaar-testdata nooit in Git. Route uitsluitend Zonlio → NIVO Portal → Odoo; geen directe Odoo-export. Abonnement, account, adviesverzoek en marketing zijn afzonderlijk. Geen functies automatisch activeren op basis van codepublicatie. Databron-/mail-/Portal- en rolgrenzen blijven expliciet.
