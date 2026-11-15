@@ -32,6 +32,11 @@ const SCHEMA = [
     contact_requested INTEGER NOT NULL, contact_expires_at VARCHAR(27) NOT NULL,
     status VARCHAR(16) NOT NULL, created_at VARCHAR(27) NOT NULL, updated_at VARCHAR(27) NOT NULL
   )`,
+  // Owner-acceptance dossiers share the real DB/queue, but never consumer KPIs or Portal.
+  `CREATE TABLE IF NOT EXISTS zonlio_acceptance_leads (
+    lead_id VARCHAR(36) PRIMARY KEY, created_at VARCHAR(27) NOT NULL,
+    FOREIGN KEY (lead_id) REFERENCES leads(id)
+  )`,
   // Additive extension tables: existing leads and their evidence are not rewritten.
   `CREATE TABLE IF NOT EXISTS lead_intakes (
     lead_id VARCHAR(36) PRIMARY KEY, kind VARCHAR(16) NOT NULL,
@@ -90,13 +95,13 @@ function periodDays(now, days) {
   return Array.from({ length: days }, (_, i) => new Date(noon - (days - i - 1) * 86400000).toISOString().slice(0, 10));
 }
 const LEAD_QUERY = `SELECT l.*, i.kind AS intake_kind, i.address_json, i.contact_preference,
-  f.owner_label, f.next_action, f.next_action_on, f.revision, p.erased_at,
+  f.owner_label, f.next_action, f.next_action_on, f.revision, p.erased_at, a.lead_id AS acceptance_lead_id,
   (SELECT o.status FROM outbox o WHERE o.lead_id=l.id AND o.kind='internal_notification' LIMIT 1) AS notification_status
-  FROM leads l LEFT JOIN lead_intakes i ON i.lead_id=l.id LEFT JOIN lead_followups f ON f.lead_id=l.id LEFT JOIN zonlio_lead_privacy p ON p.lead_id=l.id`;
+  FROM leads l LEFT JOIN lead_intakes i ON i.lead_id=l.id LEFT JOIN lead_followups f ON f.lead_id=l.id LEFT JOIN zonlio_lead_privacy p ON p.lead_id=l.id LEFT JOIN zonlio_acceptance_leads a ON a.lead_id=l.id`;
 function toLead(row) {
   if (!row) return null;
   return {
-    id: row.id, reference: row.reference, name: row.name, channel: row.channel,
+    id: row.id, reference: row.reference, acceptanceTest: Boolean(row.acceptance_lead_id), name: row.name, channel: row.channel,
     email: row.email || '', phone: row.phone || '', postcode: row.postcode || '',
     topic: row.topic, message: row.message, scenario: row.scenario_json ? JSON.parse(row.scenario_json) : null,
     shareScenario: Boolean(row.share_scenario), sourcePath: row.source_path,
@@ -209,7 +214,8 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
     async probe() { return Boolean(await adapter.work(db=>db.get('SELECT 1 AS ok'))); },
     close: () => adapter.close(),
 
-    async createLead(input, payloadHash) {
+    async createLead(input, payloadHash, { acceptance = false } = {}) {
+      if (typeof acceptance !== 'boolean') throw new TypeError('Ongeldige acceptatiemodus.');
       if (input.intake && (input.intake.kind !== 'housing' || Object.keys(housingFieldErrors({
         housing: input.intake.address, postcode: input.postcode, contactPreference: input.intake.contactPreference,
         topic: input.topic,
@@ -217,7 +223,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
       const save = async () => adapter.work(async (db) => {
         const existing = await db.get(`${LEAD_QUERY} WHERE l.request_id = ?`, [input.requestId]);
         if (existing) {
-          if (existing.payload_hash !== payloadHash) throw new StoreConflict();
+          if (existing.payload_hash !== payloadHash || Boolean(existing.acceptance_lead_id) !== acceptance) throw new StoreConflict();
           return { lead: toLead(existing), duplicate: true };
         }
         const id = randomUUID();
@@ -235,6 +241,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
           input.shareScenario ? 1 : 0, input.sourcePath, input.consentVersion, input.contactText,
           input.controller.name, input.controller.email, 1, expiresAt, 'new', createdAt, createdAt,
         ]);
+        if (acceptance) await db.run('INSERT INTO zonlio_acceptance_leads (lead_id,created_at) VALUES (?,?)', [id,createdAt]);
         if (input.intake) await db.run('INSERT INTO lead_intakes (lead_id,kind,address_json,contact_preference,created_at) VALUES (?,?,?,?,?)',
           [id, input.intake.kind, JSON.stringify(input.intake.address), input.intake.contactPreference, createdAt]);
         // NIVO receives an actionable review, never a fictitious contact milestone.
@@ -243,12 +250,12 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
           [id,nivoRequest?'Pim':'',nivoRequest?'Nieuwe aanvraag beoordelen en contactvoorkeur controleren':'',
             nivoRequest?calendarDay(createdAt):null,0]);
         await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',
-          [randomUUID(), id, 'new', 'Adviesaanvraag ontvangen.', 'website', createdAt]);
+          [randomUUID(), id, 'new', acceptance ? 'Beveiligde eigenaarstest aangemaakt.' : 'Adviesaanvraag ontvangen.', acceptance ? 'beheer-test' : 'website', createdAt]);
         for (const kind of ['internal_notification', ...(input.email ? ['customer_confirmation'] : [])]) {
           await db.run(`INSERT INTO outbox (id,unique_key,lead_id,kind,status,attempts,next_attempt_at,created_at)
             VALUES (?,?,?,?,?,?,?,?)`, [randomUUID(), `${id}:${kind}:v1`, id, kind, 'pending', 0, createdAt, createdAt]);
         }
-        if (input.intake && input.controller.name === OPERATOR.name) await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',
+        if (!acceptance && input.intake && input.controller.name === OPERATOR.name) await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',
           [randomUUID(),`${id}:0`,id,0,'pending',createdAt]);
         return { lead: toLead(await db.get(`${LEAD_QUERY} WHERE l.id = ?`, [id])), duplicate: false };
       }, true);
@@ -259,7 +266,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         return adapter.work(async (db) => {
           const existing = await db.get(`${LEAD_QUERY} WHERE l.request_id = ?`, [input.requestId]);
           if (!existing) throw error;
-          if (existing.payload_hash !== payloadHash) throw new StoreConflict();
+          if (existing.payload_hash !== payloadHash || Boolean(existing.acceptance_lead_id) !== acceptance) throw new StoreConflict();
           return { lead: toLead(existing), duplicate: true };
         });
       }
@@ -269,6 +276,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
       return adapter.work(async (db) => {
         const filters = []; const params = [];
         if (status) { filters.push('l.status = ?'); params.push(status); }
+        filters.push(queue === 'acceptance' ? 'a.lead_id IS NOT NULL' : 'a.lead_id IS NULL');
         if (queue === 'attention') {
           // Include existing unplanned records without altering consent or history.
           // Only active contact rights are displayed as follow-up work.
@@ -328,7 +336,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',
           [randomUUID(), id, status, [note, followUp ? `Opvolging: ${next.owner || 'niet toegewezen'}; ${next.nextAction || 'geen actie'}${next.nextActionOn ? ' — ' + next.nextActionOn : ''}` : ''].filter(Boolean).join('\n'), actor, at]);
         if (status === 'withdrawn') await db.run("UPDATE outbox SET status='cancelled',locked_until=NULL,claim_token=NULL,last_error='CONTACT_WITHDRAWN' WHERE lead_id=? AND status IN ('pending','processing','failed')", [id]);
-        if (existing.kind === 'housing' && existing.controller.name === OPERATOR.name) await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',
+        if (!existing.acceptanceTest && existing.kind === 'housing' && existing.controller.name === OPERATOR.name) await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',
           [randomUUID(),`${id}:${existing.revision+1}`,id,existing.revision+1,'pending',at]);
         return toLead(await db.get(`${LEAD_QUERY} WHERE l.id=?`, [id]));
       }, true);
@@ -337,7 +345,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
     async claimPortalEvents(limit=5) {
       return adapter.work(async db=>{
         const at=stamp();
-        const rows=await db.all(`SELECT * FROM portal_events WHERE status='pending' OR (status='leased' AND locked_until<=?) ORDER BY created_at,id LIMIT ${Math.min(10,Math.max(1,limit))}${adapter.dialect==='mysql'?' FOR UPDATE':''}`,[at]);
+        const rows=await db.all(`SELECT e.* FROM portal_events e WHERE (e.status='pending' OR (e.status='leased' AND e.locked_until<=?)) AND NOT EXISTS (SELECT 1 FROM zonlio_acceptance_leads a WHERE a.lead_id=e.lead_id) ORDER BY e.created_at,e.id LIMIT ${Math.min(10,Math.max(1,limit))}${adapter.dialect==='mysql'?' FOR UPDATE':''}`,[at]);
         for(const row of rows) {row.claim_token=randomUUID();row.locked_until=new Date(now()+120000).toISOString();await db.run("UPDATE portal_events SET status='leased',claim_token=?,locked_until=? WHERE id=?",[row.claim_token,row.locked_until,row.id]);}
         return rows;
       },true);
@@ -373,7 +381,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
           await db.run('UPDATE leads SET contact_requested=0,updated_at=? WHERE id=?',[at,lead.id]);
           await db.run("UPDATE outbox SET status='cancelled',locked_until=NULL,claim_token=NULL,last_error='CONTACT_EXPIRED' WHERE lead_id=? AND status IN ('pending','processing','failed')",[lead.id]);
           await db.run('INSERT INTO lead_history (id,lead_id,status,note,actor,created_at) VALUES (?,?,?,?,?,?)',[randomUUID(),lead.id,lead.status,'Contacttermijn verstreken; verdere contactacties en wachtende e-mails gestopt.','system',at]);
-          if(lead.kind==='housing'&&lead.controller.name===OPERATOR.name)await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',[randomUUID(),`${lead.id}:${revision}`,lead.id,revision,'pending',at]);
+          if(!lead.acceptanceTest&&lead.kind==='housing'&&lead.controller.name===OPERATOR.name)await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',[randomUUID(),`${lead.id}:${revision}`,lead.id,revision,'pending',at]);
         }
         return {expired:rows.length};
       },true);
@@ -416,7 +424,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
       return adapter.work(async (db) => {
         // Rows are reduced using Amsterdam calendar dates, independent of DB server timezone.
         const since = new Date(Date.parse(`${dates[0]}T00:00:00Z`) - 86400000).toISOString();
-        const rows = (await db.all('SELECT id,created_at,status,topic,source_path FROM leads WHERE created_at>=?', [since]))
+        const rows = (await db.all('SELECT id,created_at,status,topic,source_path FROM leads l WHERE created_at>=? AND NOT EXISTS (SELECT 1 FROM zonlio_acceptance_leads a WHERE a.lead_id=l.id)', [since]))
           .filter((row) => dates.includes(calendarDay(row.created_at)));
         const history=await db.all('SELECT h.lead_id,h.status FROM lead_history h JOIN leads l ON l.id=h.lead_id WHERE l.created_at>=?',[since]);
         const reached=new Map(rows.map(row=>[row.id,new Set([row.status])]));
@@ -432,7 +440,7 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         const at = stamp();
         const allOpen = await db.all(`SELECT l.status,l.created_at,l.contact_requested,l.contact_expires_at,f.owner_label,f.next_action_on
           FROM leads l LEFT JOIN lead_followups f ON f.lead_id=l.id
-          WHERE l.status NOT IN ('won','lost','closed','withdrawn')`);
+          WHERE l.status NOT IN ('won','lost','closed','withdrawn') AND NOT EXISTS (SELECT 1 FROM zonlio_acceptance_leads a WHERE a.lead_id=l.id)`);
         const actionable = allOpen.filter(r => r.contact_requested && r.contact_expires_at > at);
         const today=calendarDay(now());
         const needsAttention = r => r.status==='new' || !r.owner_label || !r.next_action_on || r.next_action_on<=today;
