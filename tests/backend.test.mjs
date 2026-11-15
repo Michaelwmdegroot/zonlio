@@ -508,7 +508,7 @@ test('internal NIVO email goes to Portal mailbox while customer confirmation rem
   const stats = (await f.api('/admin/stats',session)).body;
   assert.equal(stats.mail.notificationRecipient,'portal@nivogroepholland.nl');
   assert.equal(stats.mail.paused,false);
-  assert.doesNotMatch(JSON.stringify((await f.api('/config')).body), /portal@nivogroepholland\\.nl/,
+  assert.equal(JSON.stringify((await f.api('/config')).body).includes('portal@nivogroepholland.nl'),false,
     'The internal notification recipient is admin-only, not exposed to public visitors');
   const input = {kind:'general',confirmed:true,lead:{requestId:randomUUID(),name:'Synthetic owner',
     channel:'email',email:f.env.ADMIN_EMAIL,topic:'battery',message:'Synthetic QA only'}};
