@@ -98,7 +98,7 @@ try{
  check(true,'Failed owner test displays a persistent, visible error instead of a fleeting button flash');
  // Second attempt uses the real authenticated endpoint: only synthetic data and fake SMTP.
  await page.locator('#admin-acceptance-form button[type="submit"]').click();
- await expect(page.locator('#acceptatietest [role="status"]')).toContainText('Eigenaarstest opgeslagen');
+ await expect(page.locator('#acceptatietest .form-message[role="status"]')).toContainText('Eigenaarstest opgeslagen');
  await expect.poll(()=>messages.filter(m=>m.to==='admin@example.invalid' && m.subject?.startsWith('[TEST]')).length).toBe(2);
  check(true,'Real owner-only acceptance stores one synthetic dossier and queues exactly two fake SMTP messages');
  await page.locator('[data-admin-action="logout"]').click();await page.locator('#login-form').waitFor();check(true,'Admin logout returns to protected login');
