@@ -3,7 +3,14 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 }[char]));
 
-export function acceptanceMarkup({ email, result } = {}) {
+export function acceptanceMarkup({ email, result, error = '', mailStatus } = {}) {
+  const mailNotice = mailStatus?.paused === true
+    ? 'Mailverzending is gepauzeerd. De test kan veilig worden opgeslagen, maar er worden geen berichten verstuurd totdat de bevoegde eigenaar de pauze bewust opheft.'
+    : mailStatus?.configured === false
+      ? 'SMTP is niet ingesteld. De test kan worden opgeslagen, maar mailaflevering is nu niet mogelijk.'
+      : mailStatus?.configured === true
+        ? 'SMTP is ingesteld; een opgeslagen aanvraag zet twee berichten in de wachtrij. Inboxontvangst moet nog apart worden bevestigd.'
+        : 'De actuele mailstatus wordt opgehaald. Opslaan is niet hetzelfde als e-mail afleveren.';
   const status = result?.reference ? `<div class="form-message" role="status">
     <strong>${result.duplicate ? 'Bestaande test teruggevonden' : 'Eigenaarstest opgeslagen'}:</strong>
     ${esc(result.reference)}. ${result.mailPaused
@@ -16,6 +23,7 @@ export function acceptanceMarkup({ email, result } = {}) {
     <p>Test veilig de echte MySQL-opslag, Pim-registratie en twee soorten aanvraagmail zonder bezoekersformulieren te openen.</p></div>
     <span class="badge">Alleen beheer</span></div>
     <p class="admin-mini">Uitsluitend jouw eigen beheeradres. Testdossiers worden buiten consumentenstatistieken, gewone saleswerkvoorraad en Portal-export gehouden. Hoogstens drie aanvragen per 24 uur.</p>
+    <p class="acceptance-mail-state${mailStatus?.paused === true || mailStatus?.configured === false ? ' warning' : ''}" role="status">${esc(mailNotice)}</p>
     <details><summary>Maak één gecontroleerde eigen testaanvraag</summary>
       <form id="admin-acceptance-form" autocomplete="on">
         <div class="field"><label for="acceptance-kind">Wat wil je testen?</label>
@@ -51,7 +59,7 @@ export function acceptanceMarkup({ email, result } = {}) {
         Ik bevestig dat dit mijn eigen gegevens zijn en dat ik één echte interne testaanvraag bij NIVO doe.
         Dit geeft geen toestemming voor algemene marketing.</label>
         <button class="button button-primary" type="submit">Test opslaan en mailketen testen</button>
-        <p id="acceptance-error" class="form-message" role="alert"></p>
+        <p id="acceptance-error" class="form-message error${error ? '' : ' hidden'}" role="alert" aria-live="assertive">${esc(error)}</p>
       </form>
     </details>${status}
     <p class="admin-mini">Bevestig zelf in de inbox de interne melding en klantbevestiging. Gebruik daarna bij het testdossier de normale opvolging, intrekking en eventueel privacywissing; deel geen persoonsgegevens in GitHub.</p>
