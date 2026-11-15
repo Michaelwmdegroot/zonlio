@@ -528,12 +528,19 @@ test('internal NIVO email goes to Portal mailbox while customer confirmation rem
   assert.equal((await f.api('/config')).body.leadEnabled,false);
 });
 
-test('Hostinger LEAD_NOTIFY_TO remains an explicit runtime override of Portal mailbox fallback', async t => {
-  const f=await setup(t,{env:{LEAD_NOTIFY_TO:'team@example.invalid',SMTP_DAILY_LIMIT:'50'},
-    mailTransport:{sendMail:async message=>({accepted:[message.to],rejected:[]})}});
-  if(!f)return;
-  const session=await f.login();
-  assert.equal((await f.api('/admin/stats',session)).body.mail.notificationRecipient,'team@example.invalid');
+test('known legacy Hostinger recipient migrates to Portal mailbox while custom overrides still work', async t => {
+  const transport={sendMail:async message=>({accepted:[message.to],rejected:[]})};
+  const legacy=await setup(t,{env:{LEAD_NOTIFY_TO:'info@zonlio.nl',SMTP_DAILY_LIMIT:'50'},
+    mailTransport:transport});
+  if(!legacy)return;
+  const owner=await legacy.login();
+  assert.equal((await legacy.api('/admin/stats',owner)).body.mail.notificationRecipient,'portal@nivogroepholland.nl',
+    'Explicit historical info@zonlio.nl is migrated without another Hostinger env change');
+  const custom=await setup(t,{env:{LEAD_NOTIFY_TO:'team@example.invalid',SMTP_DAILY_LIMIT:'50'},
+    mailTransport:transport});
+  if(!custom)return;
+  const team=await custom.login();
+  assert.equal((await custom.api('/admin/stats',team)).body.mail.notificationRecipient,'team@example.invalid');
 });
 
 test('owner acceptance housing never creates Portal events, even after withdrawal and privacy erasure',async t=>{
