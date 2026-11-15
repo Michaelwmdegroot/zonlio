@@ -56,7 +56,7 @@ export async function observeProduction({ origin = 'https://zonlio.nl', fetchImp
     ['/', 200, 'html'], ['/mijn', 200, 'html'], ['/admin', 200, 'html'],
     ['/privacy', 200, 'html'], ['/contact', 200, 'html'],
     ...Object.keys(landingPages).map(path => [path, 200, 'html']),
-    ['/src/design-system.css', 200, 'css'], ['/src/admin-readiness.mjs', 200, 'js'], ['/src/admin.mjs', 200, 'workbench-js'], ['/src/member.mjs', 200, 'js'],
+    ['/src/design-system.css', 200, 'css'], ['/src/admin-readiness.mjs', 200, 'js'], ['/src/admin.mjs', 200, 'workbench-js'], ['/src/admin-acceptance.mjs', 200, 'acceptance-js'], ['/src/member.mjs', 200, 'js'],
     ['/api/admin/readiness', 401, 'private'], ['/api/member/profile', 401, 'private'],
     ['/api/admin/operations', 401, 'private'], ['/api/admin/privacy/retention', 401, 'private'], ['/api/admin/privacy/recovery', 401, 'private'],
   ];
