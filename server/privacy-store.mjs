@@ -99,7 +99,8 @@ export async function createPrivacyRepository({ adapter, now }) {
       [randomUUID(), id, action, JSON.stringify(fields), actor, at]);
   }
   async function revisionEvent(db, s, revision, at) {
-    if (s.intake?.kind === 'housing' && s.row.controller_name === OPERATOR.name) {
+    if (s.intake?.kind === 'housing' && s.row.controller_name === OPERATOR.name
+      && !await db.get('SELECT lead_id FROM zonlio_acceptance_leads WHERE lead_id=?', [s.row.id])) {
       await db.run('INSERT INTO portal_events (id,unique_key,lead_id,revision,status,created_at) VALUES (?,?,?,?,?,?)',
         [randomUUID(), `${s.row.id}:${revision}`, s.row.id, revision, 'pending', at]);
     }
