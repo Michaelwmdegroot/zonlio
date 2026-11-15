@@ -188,7 +188,10 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     if (!auth.csrfAllowed(request, request.adminSession)) return response.status(403).json({ error: 'Bevestig je beheersessie opnieuw.' });
     next();
   }
-  const mailStatus = async () => ({ configured: mail.configured, paused:mail.paused, ...(store ? await store.mailStats() : { pending: 0, failed: 0, sent: 0, lastSuccessAt: null }) });
+  const mailStatus = async () => ({ configured: mail.configured, paused:mail.paused,
+    // Only the authenticated admin stats route receives this routing address.
+    notificationRecipient: mail.notificationRecipient,
+    ...(store ? await store.mailStats() : { pending: 0, failed: 0, sent: 0, lastSuccessAt: null }) });
 
   router.use((_request, response, next) => { response.setHeader('Cache-Control', 'no-store'); next(); });
   router.use('/portal', portal.router);
