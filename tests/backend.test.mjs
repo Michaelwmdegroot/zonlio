@@ -496,6 +496,46 @@ test('private owner acceptance still rejects a mismatched NIVO receiver even wit
   assert.equal((await f.api('/admin/leads?queue=acceptance', session)).body.leads.length, 0);
 });
 
+test('internal NIVO email goes to Portal mailbox while customer confirmation remains separate and API export closed', async t => {
+  const messages = [];
+  const f = await setup(t, {
+    env: { LEAD_ENABLED:'false', HOUSING_ADVICE_ENABLED:'false', LEAD_CONTROLLER_CONFIRMED:'false',
+      PORTAL_EXPORT_ENABLED:'false', SMTP_DAILY_LIMIT:'50', MAIL_SEND_PAUSED:'false' },
+    mailTransport: { sendMail: async message => { messages.push(message); return { accepted:[message.to], rejected:[] }; } }
+  });
+  if (!f) return;
+  const session = await f.login();
+  const stats = (await f.api('/admin/stats',session)).body;
+  assert.equal(stats.mail.notificationRecipient,'portal@nivogroepholland.nl');
+  assert.equal(stats.mail.paused,false);
+  assert.doesNotMatch(JSON.stringify((await f.api('/config')).body), /portal@nivogroepholland\\.nl/,
+    'The internal notification recipient is admin-only, not exposed to public visitors');
+  const input = {kind:'general',confirmed:true,lead:{requestId:randomUUID(),name:'Synthetic owner',
+    channel:'email',email:f.env.ADMIN_EMAIL,topic:'battery',message:'Synthetic QA only'}};
+  const accepted = await f.api('/admin/acceptance/lead',{...session,method:'POST',body:input});
+  assert.equal(accepted.status,201);
+  for (let n=0;n<100&&messages.length<2;n++) await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(messages.length,2,'Exactly one internal message and one customer confirmation');
+  const internal=messages.find(m=>m.subject.includes('Zonlio adviesaanvraag'));
+  const customer=messages.find(m=>m.subject.includes('Je adviesaanvraag bij Zonlio'));
+  assert.ok(internal&&customer);
+  assert.equal(internal.to,'portal@nivogroepholland.nl');
+  assert.equal(customer.to,f.env.ADMIN_EMAIL);
+  assert.equal(internal.from.address,'info@zonlio.nl');
+  assert.equal(customer.replyTo,'info@zonlio.nl');
+  assert.match(internal.text,/Contactgegevens, woningadres en contactbewijs staan uitsluitend in het beveiligde dossier/);
+  assert.equal((await f.backend.store.portalStats()).pending||0,0,'Email does not activate Portal API transfer');
+  assert.equal((await f.api('/config')).body.leadEnabled,false);
+});
+
+test('Hostinger LEAD_NOTIFY_TO remains an explicit runtime override of Portal mailbox fallback', async t => {
+  const f=await setup(t,{env:{LEAD_NOTIFY_TO:'team@example.invalid',SMTP_DAILY_LIMIT:'50'},
+    mailTransport:{sendMail:async message=>({accepted:[message.to],rejected:[]})}});
+  if(!f)return;
+  const session=await f.login();
+  assert.equal((await f.api('/admin/stats',session)).body.mail.notificationRecipient,'team@example.invalid');
+});
+
 test('owner acceptance housing never creates Portal events, even after withdrawal and privacy erasure',async t=>{
   const f=await setup(t,{env:{LEAD_ENABLED:'false',HOUSING_ADVICE_ENABLED:'false',
     LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV',
