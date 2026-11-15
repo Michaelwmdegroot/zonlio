@@ -1,5 +1,8 @@
 # Wat de eigenaar nog nodig heeft te doen of goed te keuren — Zonlio
 
+> **Actueel · Release 07 (15 november 2026):** beide privé-eigenaaracceptaties zijn nu beschikbaar in de beheeromgeving: [test-NIVO-adviesdossier](OWNER-ACCEPTANCE-06-2026-11-15.md) en [eigen Mijn Zonlio-loginlink](OWNER-ACCOUNT-ACCEPTANCE-2026-11-15.md). Een echte aanvraag, twee ontvangen dossiermails, eigen ontvangen accountlink met bevestiging/replay, Hostinger-appherstart + twee volgende ticks en een backup in een afzonderlijke test-MySQL herstellen zijn **nog niet live aangetoond**. De effectieve mailpauze geldt altijd; zet niets blind om. Geen nieuwe cron-installatie, geen los SMTP-testmailtje, geen nieuwe NIVO-bedrijfsgegevens nodig. Publieke/dagmail/Portal-flags uit tot expliciete vrijgave. [Release-07-bewijs](RELEASE-07-EVIDENCE-2026-11-15.md).
+
+
 > **15 NOVEMBER 2026 · Release 06:** [Echte eigenaarstest is nu via beveiligd `/admin` beschikbaar](OWNER-ACCEPTANCE-06-2026-11-15.md), zonder publieke flags. [Release-06-bewijs](RELEASE-06-EVIDENCE-2026-11-15.md) bevestigt actuele live marker, MySQL/browserchecks, verschillende maintenance-ticks. De minimaal noodzakelijke handelingen zijn: (1) één eigen privé-woningadviesaanvraag + twee inboxberichten/na te lezen dossier/Pim + intrekking/privacy, (2) één bewuste Hostinger-appherstart en daarna twee nieuwe onderhouden ticks, (3) een backup herstellen naar **een afzonderlijke DB** en de bestaande read-only checker draaien. Eventuele effectieve mailpauze alleen bewust beheren bij testzending, niet blind omzetten. Geen cronjob opnieuw installeren, geen losse SMTP-test herhalen, geen persoonlijke gegevens in GitHub. Alle publieke/Portal-gates blijven uit tot apart GO.
 
 
