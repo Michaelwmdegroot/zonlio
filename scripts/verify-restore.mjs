@@ -31,7 +31,7 @@ export function restoreConfiguration(env) {
   for (const key of ['RESTORE_DB_HOST', 'RESTORE_DB_USER', 'RESTORE_DB_PASSWORD', 'RESTORE_PRIVACY_MANIFEST']) {
     if (typeof env[key] !== 'string' || !env[key].trim()) throw new Error(`${key} ontbreekt.`);
   }
-  if (FLAGS.some(key => env[key] === 'true') || env.SMTP_PASSWORD) throw new Error('Restorecontrole vereist uitgeschakelde diensten en geen SMTP-wachtwoord.');
+  if (FLAGS.some(key => env[key] === 'true') || env.SMTP_PASSWORD || env.SMTP_PASS) throw new Error('Restorecontrole vereist uitgeschakelde diensten en geen SMTP-wachtwoord.');
   const port = Number(env.RESTORE_DB_PORT || 3306);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Ongeldige herstel-databasepoort.');
   return { host: env.RESTORE_DB_HOST, port, database: name, user: env.RESTORE_DB_USER, password: env.RESTORE_DB_PASSWORD,
@@ -63,11 +63,15 @@ export function validateRecoveryManifest(manifest, now = Date.now()) {
 export function evaluateRecovery(manifest, snapshot, now = Date.now()) {
   validateRecoveryManifest(manifest, now);
   const failures = { missingLeadStops: 0, activeLeadContact: 0, staleLeadRevision: 0, revertedLeadCorrection: 0, missingLeadErasure: 0,
-    residualLeadPersonalData: 0, reactivatedSubscriptions: 0, missingDeliverySuppressions: 0,
+    residualLeadPersonalData: 0, reactivatedSubscriptions: 0, missingSubscriptionStops: 0,
+    revertedSubscriptionStops: 0, staleSubscriptionRevision: 0, missingDeliverySuppressions: 0,
     suppressedMemberUnblocked: 0, resurrectedMembers: 0, missingMemberErasureLedger: 0 };
   const leads = new Map(snapshot.leads.map(row => [row.id, row]));
   const members = new Map(snapshot.members.map(row => [row.id, row]));
   const subscriptions = new Map(snapshot.subscriptions.map(row => [row.memberId, row]));
+  const activeSubscriberEmailKeys = new Set(snapshot.subscriptions
+    .filter(row => row.status === 'active')
+    .map(row => members.get(row.memberId)?.emailKey).filter(Boolean));
   const suppressions = new Set(snapshot.deliverySuppressions.map(row => row.emailKey));
   const erasures = new Set(snapshot.memberErasures.map(row => row.memberId));
   const unblockedEmailKeys = new Set(snapshot.members.filter(row => !row.deliveryBlocked).map(row => row.emailKey));
@@ -84,7 +88,22 @@ export function evaluateRecovery(manifest, snapshot, now = Date.now()) {
     if (!row || row.requestId !== correction.requestId || row.revision < correction.revision) failures.revertedLeadCorrection++;
   }
   for (const stop of manifest.subscriptionStops) {
-    if (subscriptions.get(stop.memberId)?.status === 'active') failures.reactivatedSubscriptions++;
+    const member = members.get(stop.memberId);
+    const subscription = subscriptions.get(stop.memberId);
+    // A backup predating a stop is not reconciled merely because the original
+    // subscription row is missing. Confirm its identity and durable stop state.
+    if (!member || member.emailKey !== stop.emailKey || !subscription) failures.missingSubscriptionStops++;
+    if (subscription) {
+      // Unsubscribed is stricter than paused. An older paused record must not
+      // downgrade a later unsubscribe, even when neither sends mail today.
+      if (subscription.status !== 'active'
+        && subscription.status !== 'unsubscribed'
+        && !(stop.status === 'paused' && subscription.status === 'paused')) failures.revertedSubscriptionStops++;
+      if (!Number.isInteger(subscription.revision) || subscription.revision < stop.revision) failures.staleSubscriptionRevision++;
+    }
+    // Check the pseudonymous email identity as well as the member ID so a
+    // different restored account cannot re-enable a previously stopped address.
+    if (subscription?.status === 'active' || activeSubscriberEmailKeys.has(stop.emailKey)) failures.reactivatedSubscriptions++;
   }
   for (const stop of manifest.deliverySuppressions) {
     if (!suppressions.has(stop.emailKey)) failures.missingDeliverySuppressions++;
@@ -122,7 +141,7 @@ export async function inspectRestore(connection, manifest, now = Date.now()) {
       hasPersonalData: row.name !== '[Gegevens verwijderd]' || Boolean(row.email || row.phone || row.postcode || row.message || row.scenario_json
         || row.owner_label || row.next_action || (row.address_json && row.address_json !== '{}') || row.payload_hash !== 'erased' || Number(row.old_history)) })),
     members: (await query('SELECT id,email_key,delivery_blocked FROM zonlio_members')).map(row => ({ id: row.id, emailKey: row.email_key, deliveryBlocked: Boolean(row.delivery_blocked) })),
-    subscriptions: (await query('SELECT member_id,status FROM zonlio_subscriptions')).map(row => ({ memberId: row.member_id, status: row.status })),
+    subscriptions: (await query('SELECT member_id,status,revision FROM zonlio_subscriptions')).map(row => ({ memberId: row.member_id, status: row.status, revision: Number(row.revision) })),
     deliverySuppressions: (await query('SELECT email_key FROM zonlio_delivery_suppressions')).map(row => ({ emailKey: row.email_key })),
     memberErasures: (await query('SELECT member_id FROM zonlio_member_erasure')).map(row => ({ memberId: row.member_id })),
   };
