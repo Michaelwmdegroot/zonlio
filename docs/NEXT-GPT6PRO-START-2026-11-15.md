@@ -1,5 +1,8 @@
 # STARTPROMPT — GPT-6 Pro: rond Zonlio af als zelfstandige NIVO-leadmachine
 
+> **VERVANGEN als actuele startprompt na Release 07.** Gebruik voor voortzetting [NEXT-GPT6PRO-START-POST07-2026-11-15.md](NEXT-GPT6PRO-START-POST07-2026-11-15.md) en [HANDOFF-PHASE07-CLOSEOUT-2026-11-15.md](HANDOFF-PHASE07-CLOSEOUT-2026-11-15.md). Deze tekst hieronder blijft alleen voor historische navolgbaarheid bestaan; PR's #19–#24 en de cronwaarnemingen zijn inmiddels uitgevoerd.
+
+
 > **Aanvulling Release 07 (uitgevoerde taken):** [Release-07-bewijs](RELEASE-07-EVIDENCE-2026-11-15.md) is nu de actuele status. Productiemarker `owner-qa-07-20261115`; eigen aanvraagtest + eigen accountmagiclink-test via privé `/admin` gebouwd ([PR #19/#20/#22](https://github.com/Michaelwmdegroot/zonlio/pull/22)), onafhankelijke bekende-cronmonitor [PR #23](https://github.com/Michaelwmdegroot/zonlio/pull/23). **Niet opnieuw beginnen aan deze implementaties.** Volgende stappen: geautoriseerde echte privé testindiening/inboxbevestiging, bewuste Hostinger-restart en twee cron-ticks, onafhankelijke databasebackup-restore, Mijn Zonlio dagmail/double opt-in na aparte acceptatie en pas na formele NIVO-GO commerciële vrijgave.
 
 > **Status: uitgevoerd tot Release 06.** De nieuwe agent heeft deze opdracht vanaf `main` overgenomen en [PR #19](https://github.com/Michaelwmdegroot/zonlio/pull/19) en [PR #20](https://github.com/Michaelwmdegroot/zonlio/pull/20) gebouwd, getest en gemerged. Huidig live bewijs en resterende echte E2E staan voortaan in [RELEASE-06-EVIDENCE-2026-11-15.md](RELEASE-06-EVIDENCE-2026-11-15.md). Deze prompt is **historisch** voor eerdere werkzaamheden; vraag geen uitgevoerde release-05-/06-basistaken opnieuw.
