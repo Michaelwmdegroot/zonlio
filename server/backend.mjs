@@ -321,7 +321,7 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     const { status, cursor, queue } = request.query;
     const limit = Number(request.query.limit || 30);
     if ((status && !STATUSES.includes(status)) || (cursor && !UUID.test(cursor))
-      || (queue !== undefined && queue !== 'attention') || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+      || (queue !== undefined && !['attention', 'acceptance'].includes(queue)) || !Number.isInteger(limit) || limit < 1 || limit > 100) {
       return response.status(422).json({ error: 'Ongeldig filter of paginanummer.' });
     }
     response.json(await store.listLeads({ status, cursor, limit, queue }));
