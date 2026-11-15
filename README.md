@@ -1,3 +1,5 @@
+> **Actueel geverifieerd op 15 november 2026:** Release 08 is aantoonbaar live via [23 GETs en exacte releasemarker](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43740063602); [cronwatch](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43740094311) groen met laatste onderhoudstick `17:10:03.073 UTC`. [Volledig Release-08-bewijs](docs/RELEASE-08-EVIDENCE-2026-11-15.md). Echte klant-/NIVO-inbox, bewust herstarten, afzonderlijke backuprestore, privacybesluiten en commerciële GO blijven HOLD.
+
 > **P0-veiligheidsupdate (15-11-2026):** de read-only checker voor backupherstel is aangescherpt en gemerged via [PR #26](https://github.com/Michaelwmdegroot/zonlio/pull/26); zie [Release-08-bewijs en resterende echte productieacceptatie](docs/RELEASE-08-EVIDENCE-2026-11-15.md). Nieuwe releasemarker: `p0-restore-guard-08-20261115` (productiepaspoort pas na onafhankelijke GET-controle). Geen Hostinger-restore, echte lead-/accountmailontvangst, eigenaarherstart of commerciële GO veronderstellen. Bestaande gratis tools en alle publieksgates behouden hun huidige veiligheidstoestand.
 
 # Zonlio

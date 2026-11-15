@@ -1,6 +1,6 @@
 # Zonlio Release 08 — gerichte P0-herstelveiligheid en bewijsgrenzen
 
-**Datum:** 15 november 2026, Europe/Amsterdam. **Technische status:** PR #26 is gemerged in `main`, de rest van de P0-productieacceptatie staat **HOLD**. Dit bewijsregister vervangt de historische Release 07 niet; [fase-07-handoff](HANDOFF-PHASE07-CLOSEOUT-2026-11-15.md) blijft de functionele basis.
+**Datum:** 15 november 2026, Europe/Amsterdam. **Technische status:** Release 08 **daadwerkelijk LIVE geverifieerd** na PR #26 en #27; de overige P0-productieacceptatie en commerciële lancering staan **HOLD**. Dit bewijsregister vervangt de historische Release 07 niet; [fase-07-handoff](HANDOFF-PHASE07-CLOSEOUT-2026-11-15.md) blijft de functionele basis.
 
 ## Werkelijk uitgevoerde codewijziging
 
@@ -8,7 +8,21 @@
 - `scripts/verify-restore.mjs` voert striktere, nog steeds uitsluitend **read-only** vergelijkingen uit: geen missende abonnee-/subscriptionstop, geen teruggedraaide `unsubscribed` naar `paused`, geen oudere stoprevisie en geen via ander member-ID heractiveerd adres met dezelfde hash.
 - Restorecontrole weigert nu zowel `SMTP_PASSWORD` als alternatieve `SMTP_PASS` als die in de herstelomgeving zijn overgenomen.
 - `tests/privacy.test.mjs` dekt bovenstaande herstelvarianten met uitsluitend synthetische gegevens. [Privacyrunbook](PRIVACY-OPERATIONS.md) legt de strengere HOLD-uitkomst uit.
-- De release-identiteit `p0-restore-guard-08-20261115` identificeert de *volgende* appdeploy. **Alleen** een latere succesvolle onafhankelijke GET-observatie met exact deze marker bewijst dat deze release door Hostinger wordt geserveerd; een CI- of GitHub-merge op zichzelf niet.
+- De release-identiteit `p0-restore-guard-08-20261115` is onafhankelijk **na Hostinger-deploy** waargenomen via [productiecontrole 43740063602](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43740063602).
+
+## Nieuw bewezen na samenvoegen van release 08
+
+| Controlegegeven | Bron en exacte uitslag |
+| --- | --- |
+| `main`-SHA | [`bc7be0bc6088e08cf1c65e27c88241aa68b214e0`](https://github.com/Michaelwmdegroot/zonlio/commit/bc7be0bc6088e08cf1c65e27c88241aa68b214e0), inclusief release-P0-privacyfix en documentatie |
+| CI huidige main-app/echte MySQL8 | [Run 43739970504](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43739970504) — **SUCCESS** |
+| CI huidige main-browseracceptatie | [Run 43739970592](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43739970592) — **SUCCESS** Chromium en WebKit |
+| Independente live-productie | [Run 43740063602](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43740063602), gecontroleerd **2026-11-15 17:15:32 UTC**: `expectedRelease=observedRelease=p0-restore-guard-08-20261115`, `releaseMatches=true`, `publicChecksPassed=true` (alle 23 GETs), `databaseReady=true` |
+| Publieke consent-/commerciële gates bij die GET | `leadEnabled=false`, `housingAdviceEnabled=false`, `accountsEnabled=false`, `subscriptionsEnabled=false`, `dailySendEnabled=false`, `portalExportEnabled=false` |
+| Onafhankelijke actuele cronwatch | [Run 43740094311](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43740094311), gecontroleerd **2026-11-15 17:15:46 UTC**: `heartbeatFresh=true`, `monitoredCronStatus=current`, `databaseReady=true`, `sourcesReady=true`, `lastMaintenanceAt=2026-11-15T17:10:03.073Z` |
+
+De succesvolle observer/cronwatch zijn echte publieke read-only productiecontroles na merge. **Geen** bewijs van een bewust door eigenaar uitgevoerde appherstart, van dezelfde testreferentie voor/na die herstart, van twee daaropvolgende geplande ticks, van een echte afzonderlijke restore of van ontvangen lead-/accountmail. Onderscheid een normale deploy van een gecontroleerde restartproef.
+
 
 ## Reeds onafhankelijk verkregen bewijs
 
