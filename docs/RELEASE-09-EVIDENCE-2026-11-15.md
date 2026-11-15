@@ -1,6 +1,6 @@
 # Zonlio Release 09 — eigenaarstest na onverwachte 503, mailstatus zichtbaar
 
-**Datum:** 15 november 2026 (Europe/Amsterdam). **Status bij voorbereiding:** codefix op branch; beoogde release-ID `owner-acceptance-fix-09-20261115`. CI, merge en onafhankelijke Hostinger-productiecontrole zijn afzonderlijke stappen; deze tekst geeft nog geen bewijs van werkelijke SMTP-/inboxbezorging.
+**Datum:** 15 november 2026 (Europe/Amsterdam). **Werkelijk geverifieerde status:** codefix [PR #29](https://github.com/Michaelwmdegroot/zonlio/pull/29) **gemerged** in `main` als `cb7af19275b816781b7229fe2a73edc8ed4df796`; release `owner-acceptance-fix-09-20261115` onafhankelijk **LIVE** geverifieerd. Technische acceptatie geslaagd, echte eigenaar-/SMTP-inbox-acceptatie **OPEN**.
 
 ## Aanleiding en diagnose
 
@@ -20,11 +20,11 @@ De bijbehorende backend-route `POST /api/admin/acceptance/lead` gaf 503 op `!int
 
 ## Validatiepoort
 
-- [ ] PR-check Node.js 24, tests, MySQL 8, build, audit geslaagd.
-- [ ] Chromium en WebKit zijn geslaagd met de nieuwe serverfout- en retry-test.
-- [ ] Via geverifieerde PR naar `main` gemerged, geen force-push.
-- [ ] Onafhankelijke publieke Hostinger-GET-observatie: exact `owner-acceptance-fix-09-20261115`, 23/23 controles, alle vijf commerciële gates uit en `PORTAL_EXPORT_ENABLED=false`.
-- [ ] Onafhankelijke operations-watch na merge groen, opgeslagen MySQL-heartbeat actueel.
+- [x] PR-check Node.js 24, tests, echte MySQL 8, build en audit — [run 43747260528](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43747260528) SUCCESS.
+- [x] Chromium en WebKit inclusief 503→zichtbare fout→eigen test retry — [run 43747260512](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43747260512) SUCCESS; [main-browsercheck 43747496835](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43747496835) ook SUCCESS.
+- [x] PR #29 gecontroleerd gemerged als [commit cb7af192](https://github.com/Michaelwmdegroot/zonlio/commit/cb7af19275b816781b7229fe2a73edc8ed4df796), geen force-push.
+- [x] Onafhankelijke publieke Hostinger-GET-observatie [run 43747577700](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43747577700), 2026-11-15 18:35:14 UTC: `expectedRelease=observedRelease=owner-acceptance-fix-09-20261115`; 23/23 GETs PASS, `databaseReady=true`, `adminConfigured=true`, `mailConfigured=true`, `operatorNameMatches=true`, `operatorContactMatches=true`. `leadEnabled`, `housingAdviceEnabled`, `accountsEnabled`, `subscriptionsEnabled`, `dailySendEnabled`, `portalExportEnabled` **allemaal false**.
+- [x] Onafhankelijke operations-watch [run 43747604830](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43747604830) SUCCESS: `databaseReady=true`, `heartbeatFresh=true`, `monitoredCronStatus=current`, `sourcesReady=true`, laatste persistente onderhoudstick `2026-11-15T18:30:04.025Z`. Deze controlestaat bewijst **geen bewuste appherstart**.
 - [ ] **Echt productie-P0:** privé testdossier, Pim/consent, twee statusitems en echte NIVO-/aanvragerinboxontvangst **apart** bevestigd. Indien runtime mailpauze actief is, blijft mail-E2E geblokkeerd tot bevoegde eigenaar de normale schakelaar bewust vrijgeeft; nooit omzeilen.
 - [ ] Gecontroleerde Hostinger-appherstart + twee ticks + persistentie, echte aparte restore, NIVO privacybesluiten en publieke GO zijn **nog afzonderlijke P0-poorten**.
 
