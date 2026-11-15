@@ -23,12 +23,14 @@ Niet wijzigen: `SMTP_USER`, `SMTP_PASSWORD`, `LEAD_CONTROLLER_EMAIL`, `MAIL_SEND
 
 In beveiligd `https://zonlio.nl/admin` toont **Verbindingen → Interne NIVO-meldingen** het **daadwerkelijk gebruikte** adres. Zodra daar `portal@nivogroepholland.nl` staat, is de runtime-routering aantoonbaar effectief, zonder secrets of volledige `.env` te delen. De nieuwe code zelf bewijst nog **geen ontvangst in de externe Portal-mailbox**.
 
+> **Actuele technische oplevering (15 november 2026):** de NIVO-mailroutering is succesvol op `main` gemerged, onafhankelijk live via een expliciete releasemarker gezien en de bestaande autonome Hostinger-cron is opnieuw groen ([operations-watch 43753202998](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43753202998), laatst opgeslagen tick `2026-11-15T19:30:03.961Z`). Dit is **niet** hetzelfde als een ontvangen bericht in de nieuwe Portal-mailbox of een latere Portal API-koppeling.
+
 ## Acceptatiebewijs, zonder onnodige nieuwe tests
 
 - [x] De oude eigenaarstest leverde daadwerkelijk **twee** mails op (eigen klantbevestiging plus interne mail naar de toenmalige NIVO-inbox). Zie [Release-09-evidence](RELEASE-09-EVIDENCE-2026-11-15.md). Dit bewijst de **algemene** SMTP/outboxketen, niet de nieuwe ontvanger.
-- [ ] GitHub Node24/MySQL8/Chromium/WebKit groen na deze routeringswijziging.
-- [ ] Onafhankelijke live public read-only GET herkent de nieuwe releasemarker en de publieke/Portal-gates blijven uit.
-- [ ] In beveiligd beheer is `notificationRecipient=portal@nivogroepholland.nl` waargenomen **na deze code-uitrol** (of na eventuele handmatige correctie van een afwijkende custom override).
+- [x] [PR #32](https://github.com/Michaelwmdegroot/zonlio/pull/32) is gemerged in [commit `5e20c0b3`](https://github.com/Michaelwmdegroot/zonlio/commit/5e20c0b3ecf1ab91fcea5a8334171112d913147d); Node24 / echte MySQL8, build, dependency-audit [Check application 43753063692](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43753063692) **SUCCESS** en Chromium/WebKit [Consumer browser acceptance 43753063773](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43753063773) **SUCCESS**.
+- [x] Onafhankelijke read-only productieobservatie [43753139213](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43753139213), 2026-11-15 **19:34:33 UTC**, bevestigt **exact** `expectedRelease=observedRelease=nivo-mail-routing-10-20261115`, `publicChecksPassed=true` (23 GETs), `databaseReady=true`, `mailConfigured=true`, `leadEnabled=false`, `housingAdviceEnabled=false`, `accountsEnabled=false`, `subscriptionsEnabled=false`, `dailySendEnabled=false` en `portalExportEnabled=false`.
+- [ ] In privé `/admin → Verbindingen` is de **effectieve** `notificationRecipient=portal@nivogroepholland.nl` nog daadwerkelijk na code-uitrol door een bevoegde beheerder uitgelezen. De openbare GET-controle toont bewust geen intern routeringsadres. De bekende oude `info@zonlio.nl`-override wordt in code automatisch omgezet; een **andere** custom override kan nog afwijken.
 - [ ] Één geautoriseerde volgende test- of echte NIVO-notificatie is in de **Portal-mailbox** werkelijk ontvangen (controle door de bevoegde NIVO/Portal-beheerder). Geen kopie van de privé-payload in GitHub. Vermijd herhaald dezelfde lead aanmaken.
 - [ ] De afzonderlijke Portal-agent bepaalt formeel welke beperkte gegevens, authenticatie en opslagregels voor zijn intakeproces noodzakelijk zijn; niet stilzwijgend contactrechten of marketingtoestemming afleiden uit een mail.
 
