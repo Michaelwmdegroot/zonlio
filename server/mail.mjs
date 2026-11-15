@@ -12,9 +12,13 @@ export function createMail({ env = process.env, store, transport, logger = () =>
   const password = env.SMTP_PASSWORD || env.SMTP_PASS;
   const paused = env.MAIL_SEND_PAUSED === 'true';
   const from = env.SMTP_USER || 'info@zonlio.nl';
-  // Internal NIVO notification mailbox. Not the future NIVO Portal API export.
-  // An explicit Hostinger LEAD_NOTIFY_TO value always wins over this fallback.
-  const recipient = env.LEAD_NOTIFY_TO || 'portal@nivogroepholland.nl';
+  // Owner-approved NIVO mailbox, separate from the future Portal API export.
+  // Previous Hostinger deployments explicitly used info@zonlio.nl. Migrate that
+  // known legacy route in code so the owner does not need another hPanel change.
+  // Any other deliberately configured LEAD_NOTIFY_TO still overrides this route.
+  const configuredRecipient = typeof env.LEAD_NOTIFY_TO === 'string' ? env.LEAD_NOTIFY_TO.trim() : '';
+  const recipient = !configuredRecipient || configuredRecipient.toLowerCase() === 'info@zonlio.nl'
+    ? 'portal@nivogroepholland.nl' : configuredRecipient;
   const singleAddress=value=>typeof value==='string'&&/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(value);
   const configured = Boolean(store && (transport || password) && singleAddress(from) && singleAddress(recipient));
   const publicUrl = env.PUBLIC_URL || env.APP_URL || 'https://zonlio.nl';
