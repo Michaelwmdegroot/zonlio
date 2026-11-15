@@ -73,7 +73,7 @@ test('internal mail excludes NAW and phone, while customer gets text and HTML',a
   const f=await fixture(t);await f.store.createLead(input(),'safe-mail');const messages=[];
   const mail=createMail({store:f.store,env:{SMTP_DAILY_LIMIT:'50'},now:f.now,transport:{sendMail:async m=>{messages.push(m);return {accepted:[m.to],rejected:[]};}}});
   const result=await mail.processBatch({limit:2});assert.equal(result.sent,2);
-  const internal=messages.find(m=>m.to==='info@zonlio.nl');assert.ok(internal);
+  const internal=messages.find(m=>m.to==='portal@nivogroepholland.nl');assert.ok(internal);
   assert.doesNotMatch(internal.text,/QA Aanvrager|31600000000|qa@example.invalid|Voorbeeldstraat|2311AB/);
   assert.match(internal.text,/\/admin#lead=/);
   for(const message of messages){assert.match(message.html,/Zonlio/);assert.ok(message.text);assert.doesNotMatch(message.html,/<script|<img|tracking/i);}
