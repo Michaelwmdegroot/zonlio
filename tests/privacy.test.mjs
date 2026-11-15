@@ -213,7 +213,7 @@ test('restore configuration rejects source/production DB, active flags and inher
   assert.equal(restoreConfiguration(valid).database, 'zonlio_restore_test');
   for (const changes of [{ RESTORE_CHECK_ONLY: 'false' }, { RESTORE_DB_NAME: 'zonlio_live' }, { RESTORE_SOURCE_DB_NAME: 'zonlio_restore_test' },
     { DB_NAME: 'zonlio_restore_test' }, { RESTORE_DB_HOST: '' }, { RESTORE_PRIVACY_MANIFEST: '' }, { PORTAL_EXPORT_ENABLED: 'true' },
-    { DAYMAIL_SEND_ENABLED: 'true' }, { SMTP_PASSWORD: 'never-copy-this' }, { RESTORE_DB_PORT: 'not-a-number' }]) {
+    { DAYMAIL_SEND_ENABLED: 'true' }, { SMTP_PASSWORD: 'never-copy-this' }, { SMTP_PASS: 'alternate-secret' }, { RESTORE_DB_PORT: 'not-a-number' }]) {
     assert.throws(() => restoreConfiguration({ ...valid, ...changes }));
   }
 });
@@ -232,8 +232,40 @@ test('older restore cannot pass while newer stop/erasure/suppression records are
   assert.equal(failure.privacyReconciled, false);
   for (const key of ['activeLeadContact', 'staleLeadRevision', 'revertedLeadCorrection', 'missingLeadErasure', 'residualLeadPersonalData', 'reactivatedSubscriptions', 'missingDeliverySuppressions', 'suppressedMemberUnblocked', 'resurrectedMembers', 'missingMemberErasureLedger']) assert.equal(failure.failures[key], 1, key);
   const reconciled = { leads: [{ ...stale.leads[0], status: 'withdrawn', revision: 3, contactRequested: false, erasedAt: manifest.createdAt, hasPersonalData: false }],
-    members: [{ id: memberId, emailKey, deliveryBlocked: true }], subscriptions: [{ memberId, status: 'unsubscribed' }], deliverySuppressions: [{ emailKey }], memberErasures: [{ memberId: erasedMember }] };
+    members: [{ id: memberId, emailKey, deliveryBlocked: true }], subscriptions: [{ memberId, status: 'unsubscribed', revision: 1 }], deliverySuppressions: [{ emailKey }], memberErasures: [{ memberId: erasedMember }] };
   assert.equal(evaluateRecovery(manifest, reconciled, INITIAL_TIME).privacyReconciled, true);
   assert.throws(() => validateRecoveryManifest({ ...manifest, createdAt: new Date(INITIAL_TIME - 2 * DAY).toISOString() }, INITIAL_TIME));
   assert.throws(() => validateRecoveryManifest({ ...manifest, deliverySuppressions: [{ emailKey: 'plaintext@example.invalid', reason: 'complaint' }] }, INITIAL_TIME));
+});
+
+test('restore verifier fails closed on missing, downgraded, stale or identity-swapped subscription stops', () => {
+  const memberId = randomUUID(), otherId = randomUUID(), emailKey = hash('stop-only@example.invalid');
+  const manifest = {
+    schema: 'zonlio.privacy.recovery.v1', createdAt: new Date(INITIAL_TIME).toISOString(),
+    leadStops: [], leadCorrections: [], deliverySuppressions: [], memberErasures: [],
+    subscriptionStops: [{ memberId, emailKey, status: 'unsubscribed', revision: 6 }],
+  };
+  const member = { id: memberId, emailKey, deliveryBlocked: false };
+  const active = { leads: [], members: [member],
+    subscriptions: [{ memberId, status: 'unsubscribed', revision: 6 }],
+    deliverySuppressions: [], memberErasures: [] };
+  assert.equal(evaluateRecovery(manifest, active, INITIAL_TIME).privacyReconciled, true);
+  const cases = [
+    ['a missing restored subscription row', { subscriptions: [] }, 'missingSubscriptionStops'],
+    ['a missing restored member', { members: [] }, 'missingSubscriptionStops'],
+    ['an account with a different email hash', { members: [{ ...member, emailKey: hash('wrong@example.invalid') }] }, 'missingSubscriptionStops'],
+    ['an older paused state replacing an unsubscribe', { subscriptions: [{ memberId, status: 'paused', revision: 6 }] }, 'revertedSubscriptionStops'],
+    ['an older revision with unchanged inactive status', { subscriptions: [{ memberId, status: 'unsubscribed', revision: 5 }] }, 'staleSubscriptionRevision'],
+    ['a new account with the stopped email becoming active', { members: [{ id: otherId, emailKey, deliveryBlocked: false }],
+      subscriptions: [{ memberId: otherId, status: 'active', revision: 0 }] }, 'reactivatedSubscriptions'],
+  ];
+  for (const [description, override, code] of cases) {
+    const result = evaluateRecovery(manifest, { ...active, ...override }, INITIAL_TIME);
+    assert.equal(result.privacyReconciled, false, description);
+    assert.ok(result.failures[code] > 0, description + ': ' + code);
+  }
+  const paused = { ...manifest, subscriptionStops: [{ ...manifest.subscriptionStops[0], status: 'paused' }] };
+  const stricter = { ...active, subscriptions: [{ memberId, status: 'unsubscribed', revision: 7 }] };
+  assert.equal(evaluateRecovery(paused, stricter, INITIAL_TIME).privacyReconciled, true,
+    'A newer unsubscribed state is at least as restrictive as a previous pause.');
 });
