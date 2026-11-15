@@ -1,5 +1,8 @@
 # Zonlio Release 07 — eigenaaracceptatie accounts + autonome cronbewaking
 
+> **Aanvullende onafhankelijke geplande waarneming:** [GitHub Actions run 43665253403](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43665253403) controleerde op 2026-11-15 **01:54:32.666 UTC** dat `databaseReady=true`, `sourcesReady=true`, `heartbeatTracked=true`, `heartbeatFresh=true`, `monitoredCronStatus=current`; laatste MySQL-onderhoud was **01:50:03.548 UTC**. Dit verlengt het bewijs van autonome, herhaalde cronwerking. Een gecontroleerde **appherstart**, daadwerkelijke ontvangst van een incidentalert, echte lead-/accountinbox en onafhankelijke MySQL-restore blijven onbewezen. Zie [afgesloten fase-07-overdracht](HANDOFF-PHASE07-CLOSEOUT-2026-11-15.md).
+
+
 **Peildatum:** 15 november 2026 (Europe/Amsterdam). **Productiemarker:** `owner-qa-07-20261115` — onafhankelijk waargenomen. **Oordeel:** release **technisch LIVE**; **commerciële vrijgave HOLD**. Dit is nadrukkelijk geen echte volledige aanvraag-, mailbox-, account-, restore- of dagmail-E2E.
 
 ## Werkelijk geverifieerd bewijs
