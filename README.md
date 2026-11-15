@@ -1,5 +1,8 @@
 # Zonlio
 
+> **Actuele overdracht na Release 07 (15-11-2026):** [Fase-07-eindstand, uitgevoerde werkpakketten, open P0/P1/P2 en bewijsgrenzen](docs/HANDOFF-PHASE07-CLOSEOUT-2026-11-15.md) · [uitvoerprompt voor volgende GPT-6 Pro-agent](docs/NEXT-GPT6PRO-START-POST07-2026-11-15.md). Deze documenten hebben voorrang boven alle oudere startprompts. Nieuwste geverifieerde geplande GitHub-watch: [43665253403](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43665253403), gezond op 15 november 01:54 UTC, MySQL-onderhoudstick 01:50:03 UTC. Herstart-E2E, echte inboxen, aparte backuprestore, privacy-/commerciële GO blijven open.
+
+
 **Jouw stroom. Helder in beeld.** Nederlands consumentenplatform met gratis stroomtools, een persoonlijk dagplan en vrijwillig woningadvies voor **NIVO Groep Holland BV**. Website: [zonlio.nl](https://zonlio.nl). Contact: **info@zonlio.nl**.
 
 ## Actuele stand — 15 november 2026: Release 07 LIVE, commercieel HOLD
