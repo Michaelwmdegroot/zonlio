@@ -83,6 +83,10 @@ test('aanvraagvalidatie, idempotentie, privacy en beveiligde statuswijziging', a
   const list = await api('/admin/leads', session);
   assert.equal(list.body.leads.length, 1);
   const id = list.body.leads[0].id;
+  const deliveryRecord=(await api(`/admin/leads/${id}`,session)).body;
+  assert.deepEqual(deliveryRecord.delivery.map(item=>item.kind).sort(),['customer_confirmation','internal_notification']);
+  assert.ok(deliveryRecord.delivery.every(item=>item.status==='pending'&&item.smtpAcceptedAt===null));
+  assert.ok(deliveryRecord.delivery.every(item=>!('to' in item)&&!('email' in item)&&!('text' in item)));
   assert.equal((await api(`/admin/leads/${id}`, { method: 'PATCH', body: { status: 'contacted' }, cookie: session.cookie })).status, 403);
   assert.equal((await api(`/admin/leads/${id}`, { ...session, method: 'PATCH', body: { status: 'contacted', note: 'Testopvolging.' } })).status, 200);
   const detail = await api(`/admin/leads/${id}`, session);

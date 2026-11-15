@@ -18,6 +18,7 @@ function stub({release=RELEASE_ID,leak=false,brokenAsset=false,fetchFail=false,r
     if(path==='/api/config')return Response.json({leadEnabled:false,operatorConfigured:false,members:{accountsEnabled:false,subscriptionsEnabled:false,dailySendEnabled:false,secret:'never-output'}});
     if(path.endsWith('.css'))return new Response('--zonlio-blue: blue',{status:brokenAsset?404:200,headers:{'Content-Type':'text/css'}});
     if(path==='/src/admin.mjs')return new Response("export const workbench='lead-queue-filter focus-attention state.queue';",{headers:{'Content-Type':'text/javascript'}});
+    if(path==='/src/admin-acceptance.mjs')return new Response("export const acceptancePayload='admin-acceptance-form';",{headers:{'Content-Type':'text/javascript'}});
     if(path.endsWith('.mjs'))return new Response('export const ok=true;',{headers:{'Content-Type':'text/javascript'}});
     return htmlResponse(landingHtml[path]||'<title>Mijn Zonlio</title><link href="/src/design-system.css">');
   }};
@@ -26,7 +27,7 @@ test('public observation reads only known GET routes and distinguishes closed fe
   const f=stub();const report=await observeProduction(f);
   assert.equal(report.publicChecksPassed,true);assert.equal(report.productionEndToEndVerified,false);
   assert.equal(report.configuration.accountsEnabled,false);assert.equal(report.configuration.operatorNameMatches,false);
-  assert.equal(f.calls.length,22);assert.ok(f.calls.every(call=>call.options.method==='GET'&&call.options.redirect==='manual'&&!call.options.body&&!Object.keys(call.options.headers).some(key=>/^(?:authorization|cookie)$/i.test(key))));
+  assert.equal(f.calls.length,23);assert.ok(f.calls.every(call=>call.options.method==='GET'&&call.options.redirect==='manual'&&!call.options.body&&!Object.keys(call.options.headers).some(key=>/^(?:authorization|cookie)$/i.test(key))));
   assert.equal(report.expectedRelease,RELEASE_ID);
   for(const path of Object.keys(landingHtml))assert.deepEqual(report.endpoints[path],{status:200,expectedStatus:200,passed:true,canonicalMatches:true,staticContentPresent:true});
   for(const path of privatePaths)assert.equal(report.endpoints[path].passed,true,path);
@@ -86,4 +87,15 @@ test('live workbench script must contain queue controls before declaring release
   assert.equal(result.publicChecksPassed,false);
   assert.equal(result.endpoints['/src/admin.mjs'].workbenchPresent,false);
   assert.equal(result.endpoints['/src/admin.mjs'].passed,false);
+});
+
+test('production marker and owner acceptance asset distinguish a deployed release from stale application files', async()=>{
+  const stale=new Response('export const oldAdmin=true;',{headers:{'Content-Type':'text/javascript'}});
+  const report=await observeProduction(stub({responses:{'/src/admin-acceptance.mjs':stale}}));
+  assert.equal(report.publicChecksPassed,false);
+  assert.equal(report.endpoints['/src/admin-acceptance.mjs'].ownerAcceptanceAssetPresent,false);
+  assert.equal(report.endpoints['/src/admin-acceptance.mjs'].passed,false);
+  const missing=new Response('Not Found',{status:404,headers:{'Content-Type':'text/plain'}});
+  const failed=await observeProduction(stub({responses:{'/src/admin-acceptance.mjs':missing}}));
+  assert.equal(failed.publicChecksPassed,false);
 });

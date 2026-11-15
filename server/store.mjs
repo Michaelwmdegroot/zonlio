@@ -306,7 +306,16 @@ export async function createStore({ env = process.env, now = () => Date.now() } 
         const lead = toLead(await db.get(`${LEAD_QUERY} WHERE l.id=?`, [id]));
         if (!lead) return null;
         const history = await db.all('SELECT * FROM lead_history WHERE lead_id=? ORDER BY created_at,id', [id]);
-        return { lead, history: history.map((row) => ({ id: row.id, status: row.status, note: row.note, actor: row.actor, createdAt: row.created_at })) };
+        // Admin-only status evidence: no recipient addresses, tokens or message bodies.
+        const delivery = await db.all('SELECT kind,status,attempts,last_error,sent_at FROM outbox WHERE lead_id=? ORDER BY kind', [id]);
+        return {
+          lead,
+          history: history.map(row => ({ id: row.id, status: row.status, note: row.note, actor: row.actor, createdAt: row.created_at })),
+          delivery: delivery.map(row => ({
+            kind: row.kind, status: row.status, attempts: Number(row.attempts),
+            lastErrorCode: row.last_error || null, smtpAcceptedAt: row.sent_at || null,
+          })),
+        };
       });
     },
 
