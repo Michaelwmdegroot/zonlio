@@ -389,3 +389,88 @@ test('attention queue is private, rejects unknown filters and excludes withdrawn
   assert.equal((await f.api('/admin/leads?queue=attention',session)).body.leads.length,0);
   assert.equal((await f.api('/admin/leads',session)).body.leads.length,1);
 });
+
+
+test('owner acceptance uses live lead pipeline with closed public flags, without marketing or Portal pollution', async t => {
+  const messages = [];
+  const transport = { sendMail: async message => {
+    messages.push(message);return {accepted:[message.to],rejected:[]};
+  } };
+  const f = await setup(t,{env:{LEAD_ENABLED:'false',HOUSING_ADVICE_ENABLED:'false',
+    LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV',
+    SMTP_DAILY_LIMIT:'50'},mailTransport:transport});
+  if(!f)return;
+  const config=(await f.api('/config')).body;
+  assert.equal(config.leadEnabled,false);
+  assert.equal(config.housingAdviceEnabled,false);
+  assert.equal((await f.api('/form-token')).status,503);
+  assert.equal((await f.api('/leads',{method:'POST',body:{}})).status,503);
+  const input={kind:'general',confirmed:true,lead:{
+    requestId:randomUUID(),name:'Eigenaar Test',channel:'email',
+    email:f.env.ADMIN_EMAIL,topic:'battery',message:'Eigen acceptatie',postcode:'2311AB'}};
+  assert.equal((await f.api('/admin/acceptance/lead',{method:'POST',body:input})).status,401);
+  const session=await f.login();
+  assert.equal((await f.api('/admin/acceptance/lead',{cookie:session.cookie,method:'POST',body:input})).status,403);
+  assert.equal((await f.api('/admin/acceptance/lead',{...session,method:'POST',body:{...input,confirmed:false}})).status,422);
+  assert.equal((await f.api('/admin/acceptance/lead',{...session,method:'POST',body:{
+    ...input,lead:{...input.lead,email:'third-party@example.invalid'}}})).status,422);
+  assert.equal((await f.api('/admin/acceptance/lead',{...session,method:'POST',body:{
+    ...input,lead:{...input.lead,contactRequested:true}}})).status,422);
+  const accepted=await f.api('/admin/acceptance/lead',{...session,method:'POST',body:input});
+  assert.equal(accepted.status,201);
+  assert.equal(accepted.body.acceptanceTest,true);
+  assert.equal(accepted.body.publicLeadEnabled,false);
+  assert.equal(accepted.body.publicHousingEnabled,false);
+  assert.equal(accepted.body.mailPaused,false);
+  const again=await f.api('/admin/acceptance/lead',{...session,method:'POST',body:input});
+  assert.equal(again.status,200);
+  assert.equal(again.body.reference,accepted.body.reference);
+  assert.equal(again.body.duplicate,true);
+  assert.equal((await f.backend.store.stats(7)).totals.leads,0);
+  assert.equal((await f.backend.store.stats(7)).workload.attention,0);
+  assert.equal((await f.api('/admin/leads?queue=attention',session)).body.leads.length,0);
+  assert.equal((await f.api('/admin/leads',session)).body.leads.length,0);
+  const ownerList=await f.api('/admin/leads?queue=acceptance',session);
+  assert.equal(ownerList.body.leads.length,1);
+  assert.equal(ownerList.body.leads[0].acceptanceTest,true);
+  assert.equal(ownerList.body.leads[0].followUp.owner,'Pim');
+  assert.equal((await f.backend.store.portalStats()).pending||0,0);
+  for(let n=0;n<40&&messages.length<2;n++)await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(messages.length,2);
+  assert.ok(messages.every(message=>message.to===f.env.ADMIN_EMAIL && message.subject.startsWith('[TEST]')));
+  assert.match(messages.find(message=>message.subject.includes('Je adviesaanvraag')).text,/eigenaarstest/);
+  assert.doesNotMatch(JSON.stringify(f.logs),/Eigenaar Test|owner@example.invalid/);
+});
+
+test('owner acceptance housing never creates Portal events, even after withdrawal and privacy erasure',async t=>{
+  const f=await setup(t,{env:{LEAD_ENABLED:'false',HOUSING_ADVICE_ENABLED:'false',
+    LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV',
+    MAIL_SEND_PAUSED:'true',SMTP_DAILY_LIMIT:'50'}});
+  if(!f)return;
+  const session=await f.login();
+  const input={kind:'housing',confirmed:true,lead:{
+    requestId:randomUUID(),name:'Eigen Woning QA',channel:'phone',
+    email:f.env.ADMIN_EMAIL,phone:'0612345678',topic:'battery',
+    postcode:'2311AB',contactPreference:'afternoon',
+    housing:{street:'Voorbeeldstraat',houseNumber:'12',city:'Leiden'}}};
+  const accepted=await f.api('/admin/acceptance/lead',{...session,method:'POST',body:input});
+  assert.equal(accepted.status,201);
+  assert.equal(accepted.body.mailPaused,true);
+  const record=(await f.api('/admin/leads?queue=acceptance',session)).body.leads[0];
+  assert.equal(record.kind,'housing');
+  assert.equal(record.followUp.owner,'Pim');
+  assert.equal((await f.backend.store.mailStats()).pending,2);
+  assert.equal((await f.backend.store.portalStats()).pending||0,0);
+  const id=record.id;
+  const withdrawn=await f.api('/admin/leads/'+id,{...session,method:'PATCH',
+    body:{status:'withdrawn',expectedRevision:0}});
+  assert.equal(withdrawn.status,200);
+  assert.equal((await f.backend.store.mailStats()).pending,0);
+  assert.equal((await f.backend.store.portalStats()).pending||0,0);
+  const erased=await f.api('/admin/leads/'+id+'/erase',{...session,method:'POST',
+    body:{expectedRevision:1,requestVerified:true,confirm:'ERASE_LEAD_PERSONAL_DATA',
+      reference:record.reference}});
+  assert.equal(erased.status,200);
+  assert.equal((await f.backend.store.portalStats()).pending||0,0);
+  assert.equal((await f.backend.store.stats(7)).totals.leads,0);
+});
