@@ -542,8 +542,8 @@ test('owner acceptance login respects global mail pause and never sends pending 
   assert.equal(result.status,202);
   assert.equal(result.body.mailPaused,true);
   assert.equal(messages.length,0);
-  assert.equal((await f.backend.members.repository.stats()).mail.pending,1);
-  const task=await f.backend.members.processMail();
+  assert.equal((await f.backend.memberService.repository.stats()).mail.pending,1);
+  const task=await f.backend.memberService.processMail();
   assert.equal(task.enabled,false);
   assert.equal(messages.length,0);
   assert.equal((await f.api('/member/login',{method:'POST',body:{email:'random@example.invalid'}})).status,503);
