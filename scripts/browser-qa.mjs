@@ -80,6 +80,27 @@ try{
  await expect(page.locator('#admin-dialog .lead-history')).toContainText('Synthetische QA-notitie, geen productiecontact.');await expect(page.locator('#detail-status')).toHaveValue('contacted');check(true,'Admin status and synthetic note persist through authenticated API');
  await page.setViewportSize({width:320,height:900});await page.locator('#admin-dialog').getByText('Contactgegevens corrigeren',{exact:true}).click();await page.locator('#privacy-name').fill('Gecorrigeerde synthetische browsertest');await page.locator('#lead-correction-form [name="requestVerified"]').check();await expect(page.locator('#lead-correction-form button[type="submit"]')).toBeEnabled();await overflow(page,'320px contact correction dialog and content have no horizontal overflow');await page.locator('#lead-correction-form button[type="submit"]').click();await expect.poll(async()=> (await backend.store.getLead(lead.id)).lead.name).toBe('Gecorrigeerde synthetische browsertest');
  await expect(page.locator('#admin-dialog-title')).toHaveText('Gecorrigeerde synthetische browsertest');check((await backend.store.getLead(lead.id)).lead.contactRequested===true,'Verified correction preserves existing contact consent');await page.locator('#admin-dialog').getByText('Persoonsgegevens uit dit dossier wissen',{exact:true}).click();await page.locator('#erasure-reference').fill(lead.reference);await page.locator('#lead-erasure-form [name="requestVerified"]').check();await expect(page.locator('#lead-erasure-form button[type="submit"]')).toBeEnabled();await overflow(page,'320px verified erasure dialog and content have no horizontal overflow');await page.locator('#lead-erasure-form button[type="submit"]').click();await expect.poll(async()=> (await backend.store.getLead(lead.id)).lead.contactRequested).toBe(false);const erased=(await backend.store.getLead(lead.id)).lead;check(erased.status==='withdrawn'&&!erased.email&&!erased.phone&&erased.name==='[Gegevens verwijderd]','Verified synthetic erasure removes contact data and stops the dossier');await expect(page.locator('#admin-dialog')).toContainText('Persoonsgegevens zijn gewist');await overflow(page,'320px erased dossier has no horizontal overflow');await page.keyboard.press('Escape');
+ // Owner acceptance regression: a server refusal must stay visibly readable.
+ await page.locator('#acceptatietest summary').click();
+ await page.locator('#acceptance-name').fill('Synthetic browser owner');
+ await page.locator('#acceptance-postcode').fill('2311 AB');
+ await page.locator('#acceptance-message').fill('Synthetic private acceptance');
+ await page.locator('#admin-acceptance-form [name="confirmed"]').check();
+ await page.route('**/api/admin/acceptance/lead', route => route.fulfill({
+   status:503,contentType:'application/json',
+   body:JSON.stringify({error:'Bevestiging nodig: geen dossier opgeslagen.'}),
+ }),{times:1});
+ await page.locator('#admin-acceptance-form button[type="submit"]').click();
+ await expect(page.locator('#acceptance-error')).toBeVisible();
+ await expect(page.locator('#acceptance-error')).toContainText('geen dossier opgeslagen');
+ await page.waitForTimeout(250);
+ await expect(page.locator('#acceptance-error')).toBeVisible();
+ check(true,'Failed owner test displays a persistent, visible error instead of a fleeting button flash');
+ // Second attempt uses the real authenticated endpoint: only synthetic data and fake SMTP.
+ await page.locator('#admin-acceptance-form button[type="submit"]').click();
+ await expect(page.locator('#acceptatietest [role="status"]')).toContainText('Eigenaarstest opgeslagen');
+ await expect.poll(()=>messages.filter(m=>m.to==='admin@example.invalid' && m.subject?.startsWith('[TEST]')).length).toBe(2);
+ check(true,'Real owner-only acceptance stores one synthetic dossier and queues exactly two fake SMTP messages');
  await page.locator('[data-admin-action="logout"]').click();await page.locator('#login-form').waitFor();check(true,'Admin logout returns to protected login');
  // Real magic link through fake mail, explicit POST confirmation and profile/session persistence.
  let verificationPosts=0;page.on('request',request=>{if(request.method()==='POST'&&request.url()===base+'/api/member/verify')verificationPosts++;});
