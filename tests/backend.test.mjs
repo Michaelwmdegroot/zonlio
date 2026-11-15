@@ -478,3 +478,73 @@ test('owner acceptance housing never creates Portal events, even after withdrawa
   assert.equal((await f.backend.store.portalStats()).pending||0,0);
   assert.equal((await f.backend.store.stats(7)).totals.leads,0);
 });
+
+
+test('owner-only member acceptance uses signed magic link without opening public account or daymail gates',async t=>{
+  const messages=[];
+  const transport={sendMail:async message=>{messages.push(message);return {accepted:[message.to],rejected:[]};}};
+  const f=await setup(t,{env:{LEAD_ENABLED:'false',HOUSING_ADVICE_ENABLED:'false',
+    MEMBER_ACCOUNTS_ENABLED:'false',DAYMAIL_SIGNUP_ENABLED:'false',DAYMAIL_SEND_ENABLED:'false',
+    LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV',
+    SMTP_DAILY_LIMIT:'50'},mailTransport:transport});
+  if(!f)return;
+  assert.equal((await f.api('/member/config')).body.accountsEnabled,false);
+  assert.equal((await f.api('/member/config')).body.subscriptionsEnabled,false);
+  assert.equal((await f.api('/member/login',{method:'POST',body:{email:f.env.ADMIN_EMAIL}})).status,503);
+  assert.equal((await f.api('/member/subscribe',{method:'POST',body:{email:f.env.ADMIN_EMAIL}})).status,503);
+  const url='/admin/acceptance/member-login', body={confirmed:true};
+  assert.equal((await f.api(url,{method:'POST',body})).status,401);
+  const session=await f.login();
+  assert.equal((await f.api(url,{cookie:session.cookie,method:'POST',body})).status,403);
+  assert.equal((await f.api(url,{...session,method:'POST',body:{confirmed:false}})).status,422);
+  assert.equal((await f.api(url,{...session,method:'POST',body:{confirmed:true,email:'third-party@example.invalid'}})).status,422);
+  const accepted=await f.api(url,{...session,method:'POST',body});
+  assert.equal(accepted.status,202);
+  assert.equal(accepted.body.acceptanceTest,true);
+  assert.equal(accepted.body.publicAccountsEnabled,false);
+  for(let n=0;n<50&&!messages.length;n++)await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(messages.length,1);
+  const msg=messages[0];
+  assert.equal(msg.to,f.env.ADMIN_EMAIL);
+  assert.ok(msg.subject.startsWith('[TEST]'));
+  assert.match(msg.text,/gecontroleerde eigenaarstest/);
+  const token=msg.text.match(/#bevestig=([A-Za-z0-9_.-]+)/)?.[1];
+  assert.ok(token);
+  assert.equal((await f.api('/member/verify',{method:'POST',body:{token:token.slice(0,-2)+'xx'}})).status,400);
+  const verified=await f.api('/member/verify',{method:'POST',body:{token}});
+  assert.equal(verified.status,200);
+  assert.equal(verified.body.purpose,'login');
+  assert.ok(verified.cookie);
+  assert.equal((await f.api('/member/verify',{method:'POST',body:{token}})).status,400);
+  const signedIn=await f.api('/member/session',{cookie:verified.cookie});
+  assert.equal(signedIn.body.authenticated,true);
+  assert.equal(signedIn.body.email,f.env.ADMIN_EMAIL);
+  const profile=await f.api('/member/profile',{cookie:verified.cookie});
+  assert.equal(profile.status,200);
+  assert.equal(profile.body.member.email,f.env.ADMIN_EMAIL);
+  assert.equal((await f.api('/member/config')).body.accountsEnabled,false);
+  assert.equal((await f.api('/member/config')).body.dailySendEnabled,false);
+  assert.equal((await f.api('/admin/leads',session)).body.leads.length,0);
+  assert.equal((await f.backend.store.stats(7)).totals.leads,0);
+});
+
+test('owner acceptance login respects global mail pause and never sends pending public challenges',async t=>{
+  const messages=[];
+  const f=await setup(t,{env:{MEMBER_ACCOUNTS_ENABLED:'false',
+    DAYMAIL_SIGNUP_ENABLED:'false',DAYMAIL_SEND_ENABLED:'false',
+    LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV',
+    MAIL_SEND_PAUSED:'true',SMTP_DAILY_LIMIT:'50'},mailTransport:{
+    sendMail:async message=>{messages.push(message);return {accepted:[message.to],rejected:[]};}
+  }});
+  if(!f)return;
+  const session=await f.login();
+  const result=await f.api('/admin/acceptance/member-login',{...session,method:'POST',body:{confirmed:true}});
+  assert.equal(result.status,202);
+  assert.equal(result.body.mailPaused,true);
+  assert.equal(messages.length,0);
+  assert.equal((await f.backend.members.repository.stats()).mail.pending,1);
+  const task=await f.backend.members.processMail();
+  assert.equal(task.enabled,false);
+  assert.equal(messages.length,0);
+  assert.equal((await f.api('/member/login',{method:'POST',body:{email:'random@example.invalid'}})).status,503);
+});
