@@ -398,7 +398,7 @@ test('owner acceptance uses live lead pipeline with closed public flags, without
   } };
   const f = await setup(t,{env:{LEAD_ENABLED:'false',HOUSING_ADVICE_ENABLED:'false',
     LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV',
-    SMTP_DAILY_LIMIT:'50'},mailTransport:transport});
+    LEAD_NOTIFY_TO:'owner@example.invalid',SMTP_DAILY_LIMIT:'50'},mailTransport:transport});
   if(!f)return;
   const config=(await f.api('/config')).body;
   assert.equal(config.leadEnabled,false);
