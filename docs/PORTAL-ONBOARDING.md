@@ -1,3 +1,5 @@
+> **E-mailroutering vóór Portal API (15 november 2026):** eigenaar heeft als interim NIVO-adres `portal@nivogroepholland.nl` gekozen voor de interne Zonlio-adviesmeldingen via `LEAD_NOTIFY_TO`. De andere Portal-agent behandelt deze inbox en verdere opvolging. Dit verandert de hier beschreven toekomstige geauthenticeerde API-koppeling **niet**; `PORTAL_EXPORT_ENABLED=false` blijft verplicht. Zie [mail-only overdrachtscontract](PORTAL-EMAIL-HANDOFF-2026-11-15.md), in het bijzonder de beperkingen van de mailpayload en persoonsgegevens/rechten.
+
 # NIVO Portal aansluiten op Zonlio — uitvoerbare overdracht
 
 **Huidige toestand:** voorbereid, niet aangesloten. `PORTAL_EXPORT_ENABLED=false`. Dit document is voor de toekomstige Portal-agent en de bevoegde beheerder. Het afronden van Zonlio's zelfstandige leadopvang hoeft niet op de Portal te wachten.

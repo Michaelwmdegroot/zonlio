@@ -1,5 +1,7 @@
 # NIVO — zelfstandig opvolgen vanuit Zonlio
 
+> **Eigenaarbesluit 15 november 2026:** de interne opvolging van Pim/NIVO wordt door de eigenaar in het andere Portal-project geregeld en is **geen Zonlio-ontwikkelblokkade** meer. Zonlio levert interne transactionele adviesmeldingen via `LEAD_NOTIFY_TO=portal@nivogroepholland.nl`; dit is e-mailroutering, **geen** automatische Portal-/Odoo-koppeling. Bestaande Pim-werkvoorraad en privacy-audit blijven technisch bestaan. Alleen de daadwerkelijke ontvangst door de Portal-mailbox en de effectieve Hostinger-env zijn nog apart te bewijzen. Zie [de nieuwe e-mailoverdracht](PORTAL-EMAIL-HANDOFF-2026-11-15.md). De oudere taken hieronder zijn intern NIVO-verantwoordelijkheid, niet een nieuw Zonlio-rollenproject.
+
 **Operationeel concept ter bekrachtiging.** Ontvanger NIVO Groep Holland BV, opvolglabel Pim en de toekomstige Portal-route zijn al bevestigd. Er wordt geen onbevestigde terugbelbelofte op de publieke website geplaatst. Portal/Odoo is geen voorwaarde om een vrijgegeven Zonlio-dossier te behandelen.
 
 ## Vast werkproces
