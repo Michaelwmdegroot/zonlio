@@ -1,6 +1,6 @@
 # Mijn Zonlio — afgeschermde eigenaarstest (technische kandidaat 07)
 
-**Datumbasis:** 15 november 2026. **Status:** in PR totdat main-CI én onafhankelijke live productiemarker `owner-qa-07-20261115` geslaagd zijn. Geen algemene accountactivering of abonnementsgerechtigdheid.
+**Datumbasis:** 15 november 2026. **Status:** [Release 07 is via onafhankelijke publieke productieobservatie live bevestigd](RELEASE-07-EVIDENCE-2026-11-15.md). De geautomatiseerde MySQL8-/browsertests zijn geslaagd; de werkelijk ontvangen/verbruikte accountlink moet de eigenaar nog zelf privé aantonen. Geen algemene accountactivering of abonnementsgerechtigdheid.
 
 ## Wat dit oplevert
 

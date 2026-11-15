@@ -1,5 +1,8 @@
 # Actueel QA-register
 
+> **Release 07 (15-11-2026):** [actuele technische, MySQL-, browser- en live productiebewijzen](RELEASE-07-EVIDENCE-2026-11-15.md). Eigen accountmagiclink-test beschikbaar zonder publiek account, externe monitor detecteert gestopte eerder bewezen cron; productie-inbox, gecontroleerde herstart, aparte DB-restore, werkelijke double-opt-in/dagmail en commerciële GO blijven OPEN.
+
+
 > **15 NOVEMBER 2026 · Release 06:** [technische hoofd- en browseracceptatie, productieobservatie en cronheartbeat](RELEASE-06-EVIDENCE-2026-11-15.md) zijn bevestigd. Een echte productielead, inboxontvangst, gecontroleerde herstart, onafhankelijke MySQL-restore en commerciële vrijgave blijven open. [Eigenaarprotocol](OWNER-ACCEPTANCE-06-2026-11-15.md). Onderstaande eerdere tests vormen historische deelbewijzen, niet de complete live E2E.
 
 

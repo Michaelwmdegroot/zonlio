@@ -1,6 +1,10 @@
 # Actuele release
 
-**Huidige extern geverifieerde live marker: `owner-acceptance-06-20261115`.** De [Release-06-evidence](RELEASE-06-EVIDENCE-2026-11-15.md) bewijst actuele main-CI, echte MySQL8-/browseracceptatie, read-only productieasset en meerdere onderhoudsheartbeats. [PR #19](https://github.com/Michaelwmdegroot/zonlio/pull/19) voegde de streng afgeschermde eigenaarstest toe; [PR #20](https://github.com/Michaelwmdegroot/zonlio/pull/20) de twee mailstatussen en de unieke releasecontrole. **Een echte ontvangen klant-/NIVO-mail, productieadviesaanvraag, herstartproef, aparte DB-restore, dagmailacceptatie en commerciële GO zijn nog niet bewezen.** Alle publieke serviceflags en Portal-export blijven uit.
+**Live productiemarker: `owner-qa-07-20261115`.** [Release-07-evidence](RELEASE-07-EVIDENCE-2026-11-15.md) bevestigt de originele MySQL8-/browsercontroles en de live release-/assetcheck; privé Mijn Zonlio-login-eigenaarstest [PR #22](https://github.com/Michaelwmdegroot/zonlio/pull/22) en zelfstandige staleness-watchdog [PR #23](https://github.com/Michaelwmdegroot/zonlio/pull/23). Geen publieke accounts, leads, dagmails of Portal-export. **Echte inboxen, gecontroleerde herstart, restore en commerciële GO zijn open.**
+
+## Historische Release 06 — eigen aanvraagacceptatie
+
+**Destijds extern geverifieerde live marker: `owner-acceptance-06-20261115`.** De [Release-06-evidence](RELEASE-06-EVIDENCE-2026-11-15.md) bewijst actuele main-CI, echte MySQL8-/browseracceptatie, read-only productieasset en meerdere onderhoudsheartbeats. [PR #19](https://github.com/Michaelwmdegroot/zonlio/pull/19) voegde de streng afgeschermde eigenaarstest toe; [PR #20](https://github.com/Michaelwmdegroot/zonlio/pull/20) de twee mailstatussen en de unieke releasecontrole. **Een echte ontvangen klant-/NIVO-mail, productieadviesaanvraag, herstartproef, aparte DB-restore, dagmailacceptatie en commerciële GO zijn nog niet bewezen.** Alle publieke serviceflags en Portal-export blijven uit.
 
 ## Historische Release 05 — onderliggende mijlpaal
 
