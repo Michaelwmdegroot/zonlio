@@ -25,3 +25,35 @@ test('independent watch reports persisted maintenance without activating cron or
   assert.equal(bad.maintenanceRecorded,false);assert.equal(bad.lastMaintenanceAt,null);
   assert.doesNotMatch(JSON.stringify(bad),/private-token/);
 });
+
+
+test('independent cron monitor detects stalled proven cron even while ops expectation flag remains off',async()=>{
+  const at='2026-11-15T00:20:02.212Z';
+  const clock=minutes=>()=>Date.parse(at)+minutes*60000;
+  const get=timestamp=>observeOperations({now:clock(timestamp),
+    fetchImpl:async()=>Response.json({...health,
+      operations:{cronExpected:false,cronStatus:'not_required',lastMaintenanceAt:at}})});
+  const fresh=await get(18);
+  assert.equal(fresh.ok,true);
+  assert.equal(fresh.cronExpected,false);
+  assert.equal(fresh.cronStatus,'not_required');
+  assert.equal(fresh.heartbeatTracked,true);
+  assert.equal(fresh.heartbeatFresh,true);
+  assert.equal(fresh.monitoredCronStatus,'current');
+  const stale=await get(21);
+  assert.equal(stale.ok,false);
+  assert.equal(stale.cronExpected,false);
+  assert.equal(stale.cronStatus,'not_required');
+  assert.equal(stale.heartbeatTracked,true);
+  assert.equal(stale.heartbeatFresh,false);
+  assert.equal(stale.monitoredCronStatus,'overdue');
+  const newInstall=await observeOperations({now:clock(21),
+    fetchImpl:async()=>Response.json({...health,operations:{cronExpected:false,cronStatus:'not_required',lastMaintenanceAt:null}})});
+  assert.equal(newInstall.ok,true);
+  assert.equal(newInstall.heartbeatTracked,false);
+  assert.equal(newInstall.monitoredCronStatus,'not_required');
+  const future=await observeOperations({now:clock(0),
+    fetchImpl:async()=>Response.json({...health,operations:{cronExpected:false,cronStatus:'not_required',lastMaintenanceAt:new Date(clock(5)()).toISOString()}})});
+  assert.equal(future.ok,false,'future timestamps beyond two minutes cannot mask a stalled cron');
+  assert.doesNotMatch(JSON.stringify(stale),/secret|token|password/i);
+});

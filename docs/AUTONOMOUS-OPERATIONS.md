@@ -1,5 +1,9 @@
 # Zonlio — zelfstandig onderhoud en storingsbeheer
 
+
+> **Release 07 — onafhankelijke cronwaarschuwing:** de echte Hostinger-cron is inmiddels in productie **meerdere malen** waargenomen (zie [Release-06-evidence](RELEASE-06-EVIDENCE-2026-11-15.md)). Er is geen herinstallatie nodig. De [externe GitHub-watch](../scripts/operations-watchdog.mjs) gaat vanaf deze wijziging óók waarschuwen als een **eerder opgeslagen** succesvolle heartbeat meer dan **20 minuten** ontbreekt, zelfs wanneer `OPS_EXPECT_CRON=false` in de appconfiguratie staat. Verse installaties zonder enige tick blijven afhankelijk van expliciete `OPS_EXPECT_CRON=true`. De externe watch is **read-only** en raakt de Hostinger-config, mailpauze, taken en publieke gates niet aan. Deze technische alarmering bewijst geen daadwerkelijk ontvangen storingsmail; GitHub Actions-falen moet operationeel worden opgevolgd. De historische installatiestappen hieronder zijn alleen voor herstel, niet opnieuw uitvoeren zolang cron werkt.
+
+
 **Stand: 14 november 2026.** Dit runbook beschrijft de huidige implementatie en de veilige installatie- en bewijsstappen. Het activeert geen publieke dienst en verklaart productie niet bedrijfsklaar. De beschikbare cloud-aanmelding bij Hostinger hPanel is in deze sessie expliciet geblokkeerd; installatie, herstart en productiecontrole hieronder zijn daarom nog uit te voeren door bevoegd hostingbeheer.
 
 NIVO Groep Holland BV blijft exploitant, `info@zonlio.nl` het bekende beheer-/contactadres en **Pim** de verkoopopvolger. Deze bevestigde gegevens hoeven niet opnieuw te worden aangeleverd. De toekomstige Portal-ontvanger is geen voorwaarde voor zelfstandig onderhoud; `PORTAL_EXPORT_ENABLED=false` blijft staan.
