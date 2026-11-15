@@ -21,10 +21,20 @@ export async function observeOperations({origin='https://zonlio.nl',fetchImpl=fe
     const parsed=typeof rawLast==='string'?Date.parse(rawLast):NaN;
     const lastMaintenanceAt=Number.isFinite(parsed)?new Date(parsed).toISOString():null;
     const maintenanceRecorded=lastMaintenanceAt!==null;
-    const maintenanceAgeMinutes=maintenanceRecorded?Math.max(0,Math.floor((now()-parsed)/60000)):null;
+    const currentTime=now();
+    const maintenanceAgeMinutes=maintenanceRecorded?Math.max(0,Math.floor((currentTime-parsed)/60000)):null;
+    // Production has already demonstrated durable recurring cron ticks. Detect a stopped
+    // previously-active cron even if OPS_EXPECT_CRON has not yet been enabled in Hostinger.
+    // Fresh installations with zero recorded ticks retain the original explicit opt-in gate.
+    const heartbeatTracked=cronExpected||maintenanceRecorded;
+    const heartbeatFresh=!maintenanceRecorded || (parsed<=currentTime+120000 && currentTime-parsed<=20*60000);
+    const monitoredCronStatus=cronExpected?cronStatus
+      :maintenanceRecorded?(heartbeatFresh?'current':'overdue'):'not_required';
     const sourcesReady=!cronExpected||(data.sources?.prices?.status==='ready'&&data.sources?.weather?.status==='ready');
-    return {...result,ok:data.ok===true&&databaseReady&&Boolean(data.operations)&&(!cronExpected||cronStatus==='current')&&sourcesReady,
-      databaseReady,cronExpected,cronStatus,maintenanceRecorded,lastMaintenanceAt,maintenanceAgeMinutes,sourcesReady};
+    return {...result,ok:data.ok===true&&databaseReady&&Boolean(data.operations)
+        &&(!heartbeatTracked||monitoredCronStatus==='current')&&heartbeatFresh&&sourcesReady,
+      databaseReady,cronExpected,cronStatus,heartbeatTracked,heartbeatFresh,monitoredCronStatus,
+      maintenanceRecorded,lastMaintenanceAt,maintenanceAgeMinutes,sourcesReady};
   } catch {return {...result,error:'HEALTH_UNAVAILABLE'};}
 }
 
