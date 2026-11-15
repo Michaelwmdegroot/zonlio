@@ -50,6 +50,18 @@ export async function createMemberRepository({ adapter, now }) {
         return true;
       },true);
     },
+    // Verify a narrowly marked owner-login challenge without ever enabling public accounts.
+    async isOwnerAcceptanceChallenge(tokenHash, adminEmail) {
+      if (!adminEmail) return false;
+      return adapter.work(async db => {
+        const row=await db.get(
+          'SELECT purpose,email_key,payload_json,expires_at,consumed_at FROM zonlio_challenges WHERE token_hash=?',
+          [tokenHash]);
+        return Boolean(row && row.purpose==='login' && !row.consumed_at
+          && row.expires_at>stamp() && row.email_key===emailKey(adminEmail)
+          && row.payload_json==='{"ownerAcceptance":true}');
+      });
+    },
     async consumeChallenge({tokenHash,sessionHash,sessionExpires,emptyProfile,accountVersion,daymailVersion,daymailText}) {
       return adapter.work(async db=>{
         // Serialize identity creation without relying on MySQL gap locks for a previously absent address.
@@ -153,6 +165,28 @@ export async function createMemberRepository({ adapter, now }) {
         for (const row of rows) {
           row.claim_token=randomUUID(); row.attempts=Number(row.attempts)+1;
           await db.run("UPDATE zonlio_member_mail SET status='processing',attempts=?,claim_token=?,locked_until=? WHERE id=?",[row.attempts,row.claim_token,new Date(now()+90000).toISOString(),row.id]);
+        }
+        return rows;
+      },true);
+    },
+    // On a closed public account system, claim ONLY owner-authenticated challenge mail.
+    // Ordinary pending account/subscription/daymail is neither sent nor cancelled.
+    async claimOwnerAcceptanceMail(adminEmail, limit=1) {
+      if (!adminEmail) return [];
+      return adapter.work(async db=>{
+        const at=stamp();
+        const rows=await db.all(`SELECT m.* FROM zonlio_member_mail m
+          JOIN zonlio_challenges c ON c.id=m.challenge_id
+          WHERE m.kind='login' AND c.email_key=? AND c.payload_json=?
+            AND m.expires_at>? AND c.consumed_at IS NULL
+            AND ((m.status='pending' AND m.next_attempt_at<=?)
+              OR (m.status='processing' AND m.locked_until<=?))
+          ORDER BY m.created_at,m.id LIMIT ${Math.max(1,Math.min(3,limit))}${lock}`,
+          [emailKey(adminEmail),'{"ownerAcceptance":true}',at,at,at]);
+        for(const row of rows){
+          row.claim_token=randomUUID();row.attempts=Number(row.attempts)+1;
+          await db.run("UPDATE zonlio_member_mail SET status='processing',attempts=?,claim_token=?,locked_until=? WHERE id=?",
+            [row.attempts,row.claim_token,new Date(now()+90000).toISOString(),row.id]);
         }
         return rows;
       },true);
