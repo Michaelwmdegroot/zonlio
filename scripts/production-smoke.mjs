@@ -92,7 +92,7 @@ export async function observeProduction({ origin = 'https://zonlio.nl', fetchImp
       else if (kind === 'workbench-js') { evidence = { workbenchPresent:text.includes('lead-queue-filter') && text.includes('focus-attention') && text.includes('state.queue') }; shapeValid = /(?:text|application)\/javascript/.test(type) && !/^\s*</.test(text) && evidence.workbenchPresent; }
       else if (kind === 'acceptance-js') {
         evidence = { ownerAcceptanceAssetPresent: text.includes('admin-acceptance-form') && text.includes('acceptancePayload'), ownerMemberAcceptanceAssetPresent: text.includes('admin-acceptance-member-form') && text.includes('memberAcceptanceMarkup') };
-        shapeValid = /(?:text|application)\/javascript/.test(type) && !/^\s*</.test(text) && evidence.ownerAcceptanceAssetPresent;
+        shapeValid = /(?:text|application)\/javascript/.test(type) && !/^\s*</.test(text) && evidence.ownerAcceptanceAssetPresent && evidence.ownerMemberAcceptanceAssetPresent;
       }
       else if (kind === 'js') shapeValid = /(?:text|application)\/javascript/.test(type) && !/^\s*</.test(text);
       endpoints[path] = { status:response.status, expectedStatus, passed:response.status === expectedStatus && shapeValid, ...evidence };
