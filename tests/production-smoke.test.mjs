@@ -27,7 +27,7 @@ test('public observation reads only known GET routes and distinguishes closed fe
   const f=stub();const report=await observeProduction(f);
   assert.equal(report.publicChecksPassed,true);assert.equal(report.productionEndToEndVerified,false);
   assert.equal(report.configuration.accountsEnabled,false);assert.equal(report.configuration.operatorNameMatches,false);
-  assert.equal(f.calls.length,22);assert.ok(f.calls.every(call=>call.options.method==='GET'&&call.options.redirect==='manual'&&!call.options.body&&!Object.keys(call.options.headers).some(key=>/^(?:authorization|cookie)$/i.test(key))));
+  assert.equal(f.calls.length,23);assert.ok(f.calls.every(call=>call.options.method==='GET'&&call.options.redirect==='manual'&&!call.options.body&&!Object.keys(call.options.headers).some(key=>/^(?:authorization|cookie)$/i.test(key))));
   assert.equal(report.expectedRelease,RELEASE_ID);
   for(const path of Object.keys(landingHtml))assert.deepEqual(report.endpoints[path],{status:200,expectedStatus:200,passed:true,canonicalMatches:true,staticContentPresent:true});
   for(const path of privatePaths)assert.equal(report.endpoints[path].passed,true,path);
