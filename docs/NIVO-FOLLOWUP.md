@@ -4,7 +4,7 @@
 
 ## Vast werkproces
 
-1. Gebruik standaard **Nu opvolgen** in `/admin` om geldige, nieuwe of achterstallige contactverzoeken te zien. Kies **Alle aanvragen** voor gesloten en historische dossiers. Bekijk nieuwe en achterstallige aanvragen in `/admin`. Controleer hulpvraag, bronmodule, contactbewijs/voorkeur en resterend contactvenster. Een account of dagmailabonnement is nooit een belopdracht.
+1. Gebruik standaard **Nu opvolgen** in `/admin` voor nieuwe of achterstallige geldige contactverzoeken. Kies **Alle aanvragen** voor gesloten en historische dossiers. Controleer hulpvraag, bronmodule, contactbewijs/voorkeur en resterend contactvenster. Een account of dagmailabonnement is nooit een belopdracht.
 2. Controleer noodzakelijke gegevens en passendheid voor de gevraagde dienst. Houd het dossier bij Pim of de door NIVO aangewezen bevoegde vervanger. Noteer één volgende actie en datum; geen onnodige privégegevens in vrije notities.
 3. Leg iedere daadwerkelijke contactpoging vast. Markeer pas `contacted` wanneer de aanvrager werkelijk is bereikt en `qualified` wanneer behoefte, werkgebied en haalbare dienstverlening zijn beoordeeld. Een onbereikbaar adres is geen gekwalificeerde lead.
 4. Gebruik `appointment`, `quoted`, `won` of `lost` uitsluitend voor werkelijk bereikte momenten. De rapportage bewaart historische mijlpalen; overslaande statuskeuzes leveren geen verzonnen eerdere stappen op. Commerciële omzet/bedragen worden niet ingevuld als de huidige app die niet registreert.

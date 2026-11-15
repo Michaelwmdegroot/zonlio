@@ -2,11 +2,11 @@
 
 **Jouw stroom. Helder in beeld.** Nederlands consumentenplatform met gratis stroomtools, een persoonlijk dagplan en vrijwillig woningadvies voor **NIVO Groep Holland BV**. Website: [zonlio.nl](https://zonlio.nl). Contact: **info@zonlio.nl**.
 
-## Actuele stand — zelfstandige werking voorbereiden
+## Actuele stand — 15 november 2026: Release 05 LIVE, commercieel GO nog open
 
-Applicatiemarker: `autonomy-ready-04-20261114`. De commerciële diensten blijven **HOLD** totdat de afzonderlijke productiecontroles en eigenaarvrijgave zijn vastgelegd. Codepublicatie activeert geen publieke dienst. De eerder ontvangen losse SMTP-testmail en bevestigde bedrijfsgegevens zijn bekend; die vragen niet opnieuw om bevestiging.
+**Applicatiemarker:** `nivo-workbench-05-20261115`. De live premium stroomtools, MySQL-beheer, SEO-basis en de automatische **Pim-werkvoorraad** zijn getoetst; 22/22 publieke read-only probes zijn geslaagd. Er is **één echte maintenance-heartbeat** geregistreerd. Herhaalde ticks na een gecontroleerde herstart, volledige klant-/account-/dagmail-E2E en afzonderlijke restore zijn nog niet aangetoond. Alle zes commerciële/Portal-flags waren bij de laatste productiecheck **uit**. Codepublicatie is niet hetzelfde als commerciële GO.
 
-Lees bij hervatten eerst de [masterchecklist](docs/COMPLETION-MASTER-CHECKLIST-2026-11-14.md), [nog vereiste eigenaarshandelingen](docs/OWNER-INPUT-AND-GATES-2026-11-14.md), [startinstructie](docs/START-GPT6PRO-COMPLETION-2026-11-14.md) en [actueel releasebewijs](docs/AUTONOMY-04-RELEASE-2026-11-14.md). Controleer steeds de nieuwste `main`, CI en live marker. Oudere pilot-/groeidocumenten zijn historisch bewijs, geen huidige activeringsinstructie.
+**Nieuwe agent begint bij:** [definitieve projectoverdracht](docs/HANDOFF-FINALIZATION-2026-11-15.md), [release-05 bewijs](docs/RELEASE-05-EVIDENCE-2026-11-15.md) en de [nieuwe GPT-6 Pro-startprompt](docs/NEXT-GPT6PRO-START-2026-11-15.md). De [masterchecklist](docs/COMPLETION-MASTER-CHECKLIST-2026-11-14.md), [eigenaarspoorten](docs/OWNER-INPUT-AND-GATES-2026-11-14.md), [operationsrunbook](docs/AUTONOMOUS-OPERATIONS.md) en [privacyrunbook](docs/PRIVACY-OPERATIONS.md) blijven uitvoeringsdocumenten. Oude pilot-/groeiprompts en release 04 zijn historische context, geen actuele status.
 
 ## Product en grenzen
 
@@ -27,7 +27,7 @@ De prijsfeed gebruikt Energy-Charts/SMARD met bronvermelding; regionale weercont
 
 ## Zelfstandig onderhoud
 
-MySQL bewaart aanvragen, contactbewijs en outboxtaken transactioneel. SMTP-uitval wist geen aanvraag. Een afzonderlijke Hostinger-crontaak verwerkt elke vijf minuten onderhoud, verlopen contactrechten, queues, dagplannen en metadata. Duurzame locks voorkomen overlap; ticks blijven over een procesherstart zichtbaar. De app start geen permanente worker en vraagt geen draaiende Mac.
+MySQL bewaart aanvragen, contactbewijs en outboxtaken transactioneel. SMTP-uitval wist geen aanvraag. De eigenaar heeft een afzonderlijke Hostinger-crontaak met een schema van elke vijf minuten aangemaakt. Er is inmiddels één werkelijk opgeslagen succesvolle onderhoudstick gezien; herhaling over een gecontroleerde herstart is nog niet bewezen. De taak is bedoeld voor onderhoud, verlopen contactrechten, queues, dagplannen en metadata. Duurzame locks voorkomen overlap; de geschiedenis is ontworpen om over een procesherstart te blijven bestaan. De app start geen permanente worker en vraagt geen draaiende Mac.
 
 Het gedeelde rollende appbudget geldt voor alle verzendpogingen. Het bevestigde mailboxplafond is 100/24 uur; voorstel appbudget 50, met maximaal 80% voor dagmails. Handmatige webmail telt buiten de app en vraagt eigen ruimte. `MAIL_SEND_PAUSED=true` is de noodstop. Directe harde bounces en beheerde klachten zetten een duurzame verzendstop; asynchrone retourmails moeten nog via een bevoegde mailboxcontrole worden afgehandeld.
 
@@ -69,7 +69,8 @@ De code levert privacyexport, geverifieerde correctie, gegevenswissing met minim
 
 ## Documentatie
 
-- [Release en bewijsgrenzen](docs/AUTONOMY-04-RELEASE-2026-11-14.md) · [QA-register](docs/QA.md)
+- [**Nieuwe agent — start hier**](docs/NEXT-GPT6PRO-START-2026-11-15.md) · [**Volledige overdracht en open werk**](docs/HANDOFF-FINALIZATION-2026-11-15.md) · [**Release 05 en bewijs**](docs/RELEASE-05-EVIDENCE-2026-11-15.md)
+- [Historische release 04 en bewijsgrenzen](docs/AUTONOMY-04-RELEASE-2026-11-14.md) · [QA-register](docs/QA.md)
 - [Uitrol](docs/DEPLOYMENT.md) · [Onderhoud en incidenten](docs/AUTONOMOUS-OPERATIONS.md)
 - [Intake, toestemming en meting](docs/LEADS-PRIVACY.md) · [Privacyrechten en restore](docs/PRIVACY-OPERATIONS.md)
 - [Account-/mail-QA](docs/COMPLETION-ACCOUNTS-QA-2026-11-14.md) · [Mailauthenticatie](docs/MAIL-AUTHENTICATION-QA.md)

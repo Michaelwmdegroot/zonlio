@@ -1,6 +1,8 @@
 # Zonlio 2.0 — Masterchecklist naar zelfstandig bedrijfsklaar product
 
-**Statusdatum:** 14 november 2026 · **Scope:** zelfstandig bruikbaar consumentenplatform + vrijwillige NIVO-leadgenerator, onafhankelijk van NIVO Portal · **Geen kalenderplanning.**
+> **Actualisering 15 november 2026:** dit document bewaart de 14-november-P0-checklist als werkregister. Nieuwe release **05** is live en gedetailleerd beschreven in [HANDOFF-FINALIZATION-2026-11-15.md](HANDOFF-FINALIZATION-2026-11-15.md), [RELEASE-05-EVIDENCE-2026-11-15.md](RELEASE-05-EVIDENCE-2026-11-15.md) en de [nieuwe startprompt](NEXT-GPT6PRO-START-2026-11-15.md). De cron is **door eigenaar geïnstalleerd**; **minstens één succesvolle tick** is in de live MySQL-health aangetroffen (15 november 00:00:02.878 UTC). **Nog niet:** twee ticks na gecontroleerde herstart, inbox/lead/account-E2E, aparte restore, definitieve NIVO/AVG-goedkeuring en publieke vrijgave. Alle publieke/commerciële/Portal-flags waren bij de laatste 22/22-check uit. **Gebruik niet de oude checklistregel 'cron installeren' als nieuw verzoek.**
+
+**Statusdatum:** 14 november 2026 (oorspronkelijke checklist) · **Scope:** zelfstandig bruikbaar consumentenplatform + vrijwillige NIVO-leadgenerator, onafhankelijk van NIVO Portal · **Geen kalenderplanning.**
 
 ## Leeswijzer en bron van waarheid
 
@@ -61,7 +63,8 @@ Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppel
 - [ ] SPF/DKIM/DMARC en waar relevant afmeldheaders op **werkelijk ontvangen** bericht controleren; geen DNS blind aanpassen.
 - [ ] Transactionele aanvraagbevestiging én interne notificatie bij een echte testlead ontvangen en aan correct dossier koppelen; geen dubbeling.
 - [ ] Echte accounttoegang- en dagplaninschrijfbevestiging in inbox/spam controleren.
-- [ ] Beveiligde Hostinger-cron/maintenance daadwerkelijk installeren (Authorization-header, geen secret in URL); herhaalde succesvolle ticks, ook na herstart, bewijzen.
+- [x] Hostinger-cron door eigenaar aangemaakt op 5-minutenschema; na symlinkfix is één echte succesvolle productieheartbeat aangetroffen.
+- [ ] Nog **minstens drie daadwerkelijk geplande succesvolle ticks** documenteren, waarvan **twee na gecontroleerde appherstart**; vervolgens `OPS_EXPECT_CRON=true` met werkende bewaakte status, zonder secret in URL/logs.
 - [ ] Reële retry, tijdslimiet, rate limits, ongeldige mail, budgetuitputting en verlopen dagplan vóór verzending testen.
 - [ ] Hard-bounces/klachten en suppressies voor zelfstandig verzenden operationeel afhandelen of dagmailpilot aantoonbaar beperkt houden tot toegestane volumes met handmatige audit.
 - [ ] Verzendvolume binnen Hostinger-limiet bewaken; geen ongeautoriseerde nieuwe provider of kosten.
@@ -94,7 +97,8 @@ Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppel
 - [x] Op elke relevante module één begrijpelijke CTA: dagplan, plan bewaren of NIVO-woningadvies.
 - [ ] Formulier minimaliseren en eerder bewust verstrekte invoer hergebruiken; context/bronmodule en expliciete scenario-deling registreren.
 - [x] Alleen voor de juiste hulpvraag noodzakelijke volledige adresgegevens verzamelen; intake begrijpelijk op mobiel.
-- [ ] Dossierworkflow voor Pim: toegewezen → contactpoging → bereikt → afspraak → offerte → gewonnen/verloren; verantwoordelijkheids-/actiedatum en ingetrokken/verlopen verzoeken duidelijk.
+- [x] Nieuwe NIVO-aanvragen krijgen één interne Pim-reviewtaak en de beheerwerkvoorraad `Nu opvolgen` filtert geldig, nieuw, niet ingepland of vervallen contact; synthetische MySQL-/browserproeven en live assetcheck groen.
+- [ ] Werkelijke productie-opvolging van één toegestane aanvraag door Pim/statusworkflow bewijzen, en werkgebied, terugbeltermijn en vervanging bekrachtigen.
 - [ ] Alternatieve bevoegd beheerder/opvolger en storingsfallback vaststellen zodat geen leads blijven liggen wanneer Pim niet beschikbaar is.
 - [ ] Nieuwe aanvragen zichtbaar en veilig verwerkbaar in Zonlio-backoffice zonder Portal/Odoo.
 
@@ -163,7 +167,7 @@ Hostinger beperkt aanmelden vanuit deze cloudbrowser; de beschikbare Mail-koppel
 
 **Noodzakelijke eigenaarshandelingen en reeds genomen besluiten:** [OWNER-INPUT-AND-GATES-2026-11-14.md](OWNER-INPUT-AND-GATES-2026-11-14.md).
 
-**Start nieuwe agent:** [START-GPT6PRO-COMPLETION-2026-11-14.md](START-GPT6PRO-COMPLETION-2026-11-14.md).
+**Start nieuwe agent (actueel):** [NEXT-GPT6PRO-START-2026-11-15.md](NEXT-GPT6PRO-START-2026-11-15.md). [De oude startprompt](START-GPT6PRO-COMPLETION-2026-11-14.md) is historisch en bevat inmiddels ingehaalde cron-/werkvoorraadstatus.
 
 ## Beveiliging en onderhoudsdiscipline
 
