@@ -146,6 +146,12 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   const contactTexts = Object.fromEntries(['email', 'phone'].map((channel) => [channel,
     `Met deze aanvraag vraag je ${controller.name} om binnen 30 dagen ${channel === 'phone' ? 'telefonisch' : 'per e-mail'} te reageren over het gekozen onderwerp. Zonlio gebruikt daarvoor je ingevulde contactgegevens en, als je dat kiest, je berekening. Je kunt je aanvraag intrekken via ${controller.email}. Dit is geen nieuwsbriefinschrijving.`]));
   const intakeReady = Boolean(store && operator.matches && (!auth.production || (operator.confirmed && auth.configured)));
+  // The private, owner-confirmed acceptance route is NOT a public launch.
+  // Keep it independent of LEAD_CONTROLLER_CONFIRMED: that setting is a
+  // commercial/legal activation gate, deliberately held until P0 succeeds.
+  // Only the existing authenticated administrator can send their own data;
+  // controller name/contact must still match the canonical NIVO identity.
+  const ownerAcceptanceReady = Boolean(store && operator.matches && auth.configured);
   // Identity confirmation also supports accounts; it is never a public lead switch.
   const enabled = intakeReady && (env.LEAD_ENABLED === 'true' || (!auth.production && env.LEAD_ENABLED === undefined));
   // A separate, explicit gate: deployment or design approval never enables the new intake.
@@ -234,8 +240,8 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   });
 
   router.post('/admin/acceptance/lead', administrator, csrf, async (request, response) => {
-    if (!intakeReady || !operator.confirmed) {
-      return response.status(503).json({ error: 'De veilige acceptatietest vraagt een werkende database en bevestigde NIVO-ontvanger.' });
+    if (!ownerAcceptanceReady) {
+      return response.status(503).json({ error: 'De eigen acceptatietest is niet beschikbaar. Controleer database, beheeraccount en NIVO-ontvanger bij Testen & activering.' });
     }
     const input = request.body;
     const kinds = ['general', 'housing'];
