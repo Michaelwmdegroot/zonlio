@@ -548,3 +548,30 @@ test('owner acceptance login respects global mail pause and never sends pending 
   assert.equal(messages.length,0);
   assert.equal((await f.api('/member/login',{method:'POST',body:{email:'random@example.invalid'}})).status,503);
 });
+
+
+test('owner login acceptance never drains a public member challenge while public services are closed',async t=>{
+  const messages=[];
+  const f=await setup(t,{env:{MEMBER_ACCOUNTS_ENABLED:'false',DAYMAIL_SIGNUP_ENABLED:'false',
+    DAYMAIL_SEND_ENABLED:'false',LEAD_CONTROLLER_CONFIRMED:'true',
+    LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV',SMTP_DAILY_LIMIT:'50'},
+    mailTransport:{sendMail:async m=>{messages.push(m);return {accepted:[m.to],rejected:[]};}}});
+  if(!f)return;
+  const service=f.backend.memberService,repo=service.repository;
+  const injected=await repo.queueChallenge({purpose:'login',email:'unrelated@example.invalid',
+    payload:{},tokenFor:service.tokenFor});
+  assert.equal(injected,true);
+  const session=await f.login();
+  assert.equal((await f.api('/admin/acceptance/member-login',
+    {...session,method:'POST',body:{confirmed:true}})).status,202);
+  for(let i=0;i<50&&messages.length<1;i++)await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(messages.length,1);
+  assert.equal(messages[0].to,f.env.ADMIN_EMAIL);
+  const after=await repo.stats();
+  assert.equal(after.mail.pending,1,'unrelated pending mail stays queued, not cancelled and not delivered');
+  assert.equal(after.mail.accepted,1);
+  const batch=await service.processMail();
+  assert.equal(batch.accepted,0);
+  assert.equal(messages.length,1);
+  assert.equal((await repo.stats()).mail.pending,1);
+});
