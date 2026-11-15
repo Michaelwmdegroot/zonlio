@@ -79,3 +79,22 @@ export function acceptancePayload(form) {
   form.dataset.requestId = lead.requestId; // Reuse on a network retry; server remains idempotent.
   return {kind: housing ? 'housing' : 'general', confirmed: form.elements.confirmed.checked, lead};
 }
+
+export function memberAcceptanceMarkup({email,result}={}) {
+  return `<section class="panel admin-panel" id="account-acceptance">
+    <div class="panel-head"><div><h2>Mijn Zonlio · eigen accounttest</h2>
+    <p>Controleer de echte eenmalige loginlink via je eigen beheerinbox, ook zolang publieke accountregistratie uitstaat.</p></div>
+    <span class="badge">Alleen beheer</span></div>
+    <p class="admin-mini">Uitsluitend het bestaande beheeradres ${esc(email)}. Geen bezoekersregistratie, geen dagmailinschrijving, geen verkooptoestemming. Link verloopt na 15 minuten; een mailpauze blijft van kracht.</p>
+    <details><summary>Vraag een eigen test-inloglink aan</summary>
+      <form id="admin-acceptance-member-form">
+        <label class="testmail-confirm"><input type="checkbox" name="confirmed" required>
+          Ik bevestig dat ik uitsluitend voor mezelf één gecontroleerde Mijn Zonlio-loginmail wil ontvangen.
+        </label>
+        <button class="button button-secondary" type="submit">Stuur mijn eigen test-inloglink</button>
+        <p id="acceptance-member-error" class="form-message" role="alert"></p>
+      </form>
+    </details>
+    ${result?.ok ? `<p class="form-message" role="status">Eigen accounttest aangevraagd. ${result.mailPaused ? 'Verzending staat momenteel gepauzeerd.' : 'Controleer ontvangst in je eigen beheerinbox en spammap.'} Een werkelijk ontvangen link moet je nog zelf bewust bevestigen op /mijn.</p>` : ''}
+  </section>`;
+}
