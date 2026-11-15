@@ -1,5 +1,8 @@
 # Wat de eigenaar nog nodig heeft te doen of goed te keuren — Zonlio
 
+> **15 NOVEMBER 2026 · Release 06:** [Echte eigenaarstest is nu via beveiligd `/admin` beschikbaar](OWNER-ACCEPTANCE-06-2026-11-15.md), zonder publieke flags. [Release-06-bewijs](RELEASE-06-EVIDENCE-2026-11-15.md) bevestigt actuele live marker, MySQL/browserchecks, verschillende maintenance-ticks. De minimaal noodzakelijke handelingen zijn: (1) één eigen privé-woningadviesaanvraag + twee inboxberichten/na te lezen dossier/Pim + intrekking/privacy, (2) één bewuste Hostinger-appherstart en daarna twee nieuwe onderhouden ticks, (3) een backup herstellen naar **een afzonderlijke DB** en de bestaande read-only checker draaien. Eventuele effectieve mailpauze alleen bewust beheren bij testzending, niet blind omzetten. Geen cronjob opnieuw installeren, geen losse SMTP-test herhalen, geen persoonlijke gegevens in GitHub. Alle publieke/Portal-gates blijven uit tot apart GO.
+
+
 **Statusdatum:** 14 november 2026, **geactualiseerd 15 november 2026**. **De Hostinger-cron is al aangemaakt**; na de symlinkcorrectie is minimaal één werkelijk opgeslagen tick aangetroffen. Geen herinstallatie vragen. Voor actuele prioriteiten/bewijs zie [definitieve overdracht](HANDOFF-FINALIZATION-2026-11-15.md) en [nieuwe startprompt](NEXT-GPT6PRO-START-2026-11-15.md). Dit document vraagt **geen herhaling van reeds beantwoorde vragen** en bevat geen privaat testdossier of geheim.
 
 ## Vaststaande besluiten — NIET opnieuw vragen

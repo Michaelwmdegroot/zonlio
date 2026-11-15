@@ -1,5 +1,8 @@
 # Actueel QA-register
 
+> **15 NOVEMBER 2026 · Release 06:** [technische hoofd- en browseracceptatie, productieobservatie en cronheartbeat](RELEASE-06-EVIDENCE-2026-11-15.md) zijn bevestigd. Een echte productielead, inboxontvangst, gecontroleerde herstart, onafhankelijke MySQL-restore en commerciële vrijgave blijven open. [Eigenaarprotocol](OWNER-ACCEPTANCE-06-2026-11-15.md). Onderstaande eerdere tests vormen historische deelbewijzen, niet de complete live E2E.
+
+
 Voor `autonomy-ready-04-20261114` geldt het [releasebewijs](AUTONOMY-04-RELEASE-2026-11-14.md). Lokale tests, echte MySQL-CI, Chromium/WebKit, publieke productieobservatie en eigenaar-/inbox-/restorebewijs zijn afzonderlijke categorieën. De actuele deelregisters zijn [account/mail](COMPLETION-ACCOUNTS-QA-2026-11-14.md), [consument/SEO](COMPLETION-CONSUMER-QA-2026-11-14.md), [privacy/restore](PRIVACY-OPERATIONS.md) en [mailauthenticatie](MAIL-AUTHENTICATION-QA.md).
 
 ## Historisch QA-bewijs van de oorspronkelijke pilot

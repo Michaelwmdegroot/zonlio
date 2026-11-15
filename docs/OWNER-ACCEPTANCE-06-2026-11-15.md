@@ -1,6 +1,6 @@
 # Zonlio — gecontroleerde eigenaarstest voor P0-productieacceptatie (releasekandidaat 06)
 
-**Peildatum:** 15 november 2026, Europe/Amsterdam. **Status:** ontwikkelbranch; CI en live productie-E2E zijn nog onafhankelijk te bewijzen. Dit document geeft **geen** commerciële of mailvrijgave.
+**Peildatum:** 15 november 2026, Europe/Amsterdam. **Status:** [Release 06 staat aantoonbaar live](RELEASE-06-EVIDENCE-2026-11-15.md); CI en 23 read-only productieprobes zijn geslaagd. **Een echte eigenaarstest, inboxontvangst, gecontroleerde herstart en database-restore zijn nog open.** Dit document geeft **geen** commerciële of algemene mailvrijgave.
 
 ## Waarom deze wijziging
 
