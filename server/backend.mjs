@@ -220,6 +220,19 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
   // Authenticated owner-only acceptance, while the public lead gates stay closed.
   // The test goes through exactly the normal validator, transactional lead store and
   // outbox, but the customer recipient must match the logged-in admin mailbox.
+  // Controlled account login mail for the authenticated owner ONLY. Does not open public /member/login.
+  router.post('/admin/acceptance/member-login', administrator, csrf, async (request, response) => {
+    if (!isObject(request.body)||Object.keys(request.body).length!==1||request.body.confirmed!==true)
+      return response.status(422).json({error:'Bevestig expliciet de eigen Mijn Zonlio-acceptatie.'});
+    if (!auth.limiter.take(`admin-acceptance-member:${request.adminSession.email}`,3,86400000))
+      return response.status(429).json({error:'Maximaal drie eigen accounttests per 24 uur.'});
+    const result=await memberService.requestOwnerAcceptanceLogin();
+    if (!result.enabled) return response.status(503).json({error:'De veilige accounttest is nog niet beschikbaar; controleer database en mailconfiguratie.'});
+    response.status(202).json({ok:true,acceptanceTest:true,mailPaused:mail.paused,
+      publicAccountsEnabled:memberService.config().accountsEnabled,
+      message:'Controleer uitsluitend je eigen beheerinbox. Een bestaande verzendstop, wachttijd of mailpauze kan verzending tegenhouden.'});
+  });
+
   router.post('/admin/acceptance/lead', administrator, csrf, async (request, response) => {
     if (!intakeReady || !operator.confirmed) {
       return response.status(503).json({ error: 'De veilige acceptatietest vraagt een werkende database en bevestigde NIVO-ontvanger.' });

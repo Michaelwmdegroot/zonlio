@@ -41,6 +41,13 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
   const accountsEnabled=ready&&env.MEMBER_ACCOUNTS_ENABLED==='true';
   const subscriptionsEnabled=ready&&env.DAYMAIL_SIGNUP_ENABLED==='true';
   const dailySendEnabled=ready&&env.DAYMAIL_SEND_ENABLED==='true';
+  const ownerAcceptanceAddress=emailAddress(env.ADMIN_EMAIL)?.toLowerCase()||null;
+  const isOwnerAcceptanceContext=context=>{
+    const challenge=context?.challenge;
+    return Boolean(ownerAcceptanceAddress&&challenge?.purpose==='login'
+      && emailAddress(challenge.email)?.toLowerCase()===ownerAcceptanceAddress
+      && challenge.payload_json==='{"ownerAcceptance":true}');
+  };
   const config=()=>({accountsEnabled,subscriptionsEnabled,dailySendEnabled,policyVersion:DAYMAIL_POLICY_VERSION,policyText:DAYMAIL_TEXT,
     accountVersion:ACCOUNT_POLICY_VERSION,editions:['evening','morning'],note:'Avond: vanaf 18:00 voor morgen; ochtend: vanaf 07:00 voor vandaag. Alleen met beschikbare prijzen. Geen automatische apparaatsturing.'});
   const router=express.Router();
@@ -74,6 +81,14 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
     res.status(202).json({ok:true,message:'Controleer je inbox wanneer het verzoek kan worden verwerkt. Een nieuwe aanvraag kan tijdelijk begrensd zijn.'});
     if(queued)onQueued();
   }
+  // Called ONLY from the authenticated admin/CSRF route; the public login gate is unchanged.
+  async function requestOwnerAcceptanceLogin() {
+    if(!ready||!auth.configured||!ownerAcceptanceAddress)return {enabled:false,queued:false};
+    const queued=await repository.queueChallenge({purpose:'login',
+      email:ownerAcceptanceAddress,payload:{ownerAcceptance:true},tokenFor});
+    if(queued)onQueued();
+    return {enabled:true,queued};
+  }
   router.get('/config',(_req,res)=>res.json(config()));
   router.post('/login',origin,available('login'),(req,res)=>requestChallenge(req,res,'login'));
   router.post('/subscribe',origin,available('subscribe'),(req,res)=>requestChallenge(req,res,'subscribe'));
@@ -81,7 +96,9 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
     if(!repository||!allowKeys(req.body,['token'])||!auth.limiter.take(`member-verify:${auth.requestKey(req)}`,30,15*60000))return res.status(400).json({error:'De link kan niet worden bevestigd.'});
     const token=req.body.token;
     const purpose=validToken(token,'login')?'login':validToken(token,'subscribe')?'subscribe':null;
-    if(!purpose||!(purpose==='login'?accountsEnabled:subscriptionsEnabled))return res.status(400).json({error:'Deze link is ongeldig, verlopen of de dienst is gepauzeerd.'});
+    const ownerAcceptance=purpose==='login'&&!accountsEnabled
+      &&await repository.isOwnerAcceptanceChallenge(digest(token),ownerAcceptanceAddress);
+    if(!purpose||!(purpose==='login'?(accountsEnabled||ownerAcceptance):subscriptionsEnabled))return res.status(400).json({error:'Deze link is ongeldig, verlopen of de dienst is gepauzeerd.'});
     const sessionToken=randomBytes(32).toString('base64url');
     const result=await repository.consumeChallenge({tokenHash:digest(token),sessionHash:digest(sessionToken),sessionExpires:new Date(now()+sessionLength).toISOString(),emptyProfile:cleanEnergyProfile({}),accountVersion:ACCOUNT_POLICY_VERSION,daymailVersion:DAYMAIL_POLICY_VERSION,daymailText:DAYMAIL_TEXT});
     if(!result)return res.status(400).json({error:'Deze link is verlopen of al gebruikt. Vraag een nieuwe aan.'});
@@ -136,10 +153,12 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
     let title,text,html,headers={}; let to;
     if(context.challenge) {
       const c=context.challenge;to=c.email;const link=`${publicOrigin}/mijn#bevestig=${tokenFor(c.id,c.purpose)}`;
-      title=c.purpose==='login'?'Open jouw Mijn Zonlio':'Bevestig jouw Zonlio-dagplan';
+      const ownerAcceptance=isOwnerAcceptanceContext(context);
+      title=c.purpose==='login'?(ownerAcceptance?'[TEST] Open jouw Mijn Zonlio':'Open jouw Mijn Zonlio'):'Bevestig jouw Zonlio-dagplan';
       const requested=c.purpose==='subscribe'?JSON.parse(c.payload_json):null;
       const preferences=requested?` Je koos de ${requested.edition==='morning'?'ochtend':'avond'}editie, ${requested.profile.devices.map(id=>({washing:'wasmachine',dishwasher:'vaatwasser',car:'elektrische auto'})[id]).join(', ')} en het venster ${requested.profile.startHour}:00–${requested.profile.endHour}:00. Bij een bestaand inactief abonnement worden deze apparaatkeuzes bijgewerkt; je bewaarde contracttarieven blijven behouden. Een actief abonnement verandert niet door deze inschrijving.`:'';
-      const explanation=c.purpose==='login'?'Deze eenmalige inloglink is 15 minuten geldig. Open de link en bevestig de actie.':`Bevestig met de knop op de website dat je het gekozen dagplan wilt ontvangen. De link is 24 uur geldig. Dit is geen toestemming voor verkooptelefoontjes of aanbiedingen.${preferences}`;
+      const explanation=c.purpose==='login'
+        ?`Deze eenmalige inloglink is 15 minuten geldig. Open de link en bevestig de actie.${ownerAcceptance?' Dit is een gecontroleerde eigenaarstest; publieke accounts blijven uitgeschakeld.':''}`:`Bevestig met de knop op de website dat je het gekozen dagplan wilt ontvangen. De link is 24 uur geldig. Dit is geen toestemming voor verkooptelefoontjes of aanbiedingen.${preferences}`;
       text=`${title}\n\n${explanation}\n\n${link}\n\nNiet zelf aangevraagd? Negeer deze mail. Er verandert niets zonder bevestiging.\n\nZonlio — ${OPERATOR.name}\n${OPERATOR.street}, ${OPERATOR.postcode} ${OPERATOR.city}\nKvK ${OPERATOR.kvk} · ${OPERATOR.email}`;
       html=emailFrame(title,`<p>${esc(explanation)}</p><p><a style="display:inline-block;background:#0765F1;color:white;padding:14px 20px;border-radius:12px;text-decoration:none" href="${esc(link)}">${c.purpose==='login'?'Open Mijn Zonlio':'Bevestig mijn dagplan'}</a></p><p>Niet zelf aangevraagd? Negeer deze mail.</p>`);
     } else {
@@ -154,20 +173,24 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
   }
   async function processMail({limit:batchLimit=3}={}) {
     if(mail.paused)return {enabled:false,reason:'paused',accepted:0};
-    if(!ready||(!accountsEnabled&&!subscriptionsEnabled&&!dailySendEnabled))return {enabled:false,accepted:0};
+    if(!ready)return {enabled:false,accepted:0};
     const result={enabled:true,accepted:0,cancelled:0,failed:0,deferred:0};
-    for(const item of await repository.claimMail(batchLimit)) {
+    const ownerOnly=!accountsEnabled&&!subscriptionsEnabled&&!dailySendEnabled;
+    const items=ownerOnly
+      ?await repository.claimOwnerAcceptanceMail(ownerAcceptanceAddress,batchLimit)
+      :await repository.claimMail(batchLimit);
+    for(const item of items) {
       let targetEmail;
       try {
         let context=await repository.mailContext(item);
-        if(!context||(item.kind==='login'&&!accountsEnabled)||(item.kind==='subscribe'&&!subscriptionsEnabled)||(item.kind==='daily'&&!dailySendEnabled)) {await repository.finishMail(item,'cancelled','SERVICE_PAUSED');result.cancelled++;continue;}
+        if(!context||(item.kind==='login'&&!accountsEnabled&&!isOwnerAcceptanceContext(context))||(item.kind==='subscribe'&&!subscriptionsEnabled)||(item.kind==='daily'&&!dailySendEnabled)) {await repository.finishMail(item,'cancelled','SERVICE_PAUSED');result.cancelled++;continue;}
         if(item.kind==='daily') {
           const payload=JSON.parse(item.payload_json);
           if(!context.member||context.member.deliveryBlocked||context.subscription?.status!=='active'||context.member.revision!==payload.profileRevision||context.subscription.revision!==payload.subscriptionRevision) {await repository.finishMail(item,'cancelled','PREFERENCES_CHANGED');result.cancelled++;continue;}
         }
         if(!await repository.reserveBudget(item.kind,limit)) {await repository.deferMail(item);result.deferred++;continue;}
         context=await repository.mailContext(item); // Check withdrawal and expiry immediately before handing to SMTP.
-        if(!context||(item.kind==='daily'&&(!context.member||context.member.deliveryBlocked||context.subscription?.status!=='active'||context.member.revision!==JSON.parse(item.payload_json).profileRevision||context.subscription.revision!==JSON.parse(item.payload_json).subscriptionRevision))) {await repository.finishMail(item,'cancelled','CONSENT_CHANGED');result.cancelled++;continue;}
+        if(!context||(item.kind==='login'&&!accountsEnabled&&!isOwnerAcceptanceContext(context))||(item.kind==='daily'&&(!context.member||context.member.deliveryBlocked||context.subscription?.status!=='active'||context.member.revision!==JSON.parse(item.payload_json).profileRevision||context.subscription.revision!==JSON.parse(item.payload_json).subscriptionRevision))) {await repository.finishMail(item,'cancelled','CONSENT_CHANGED');result.cancelled++;continue;}
         targetEmail=context.challenge?.email||context.member?.email;
         const sent=await mail.sendService(messageFor(item,context));
         if(sent?.rejected?.length||!sent?.accepted?.length)throw Object.assign(new Error('SMTP_NOT_ACCEPTED'),{code:'EENVELOPE'});
@@ -210,5 +233,5 @@ export function createMemberService({env,store,auth,mail,market,now=()=>Date.now
     try {const schedule=await scheduleDaily();const sent=await processMail();await repository.cleanup();result={schedule,sent};return result;}
     finally {await repository.finishTask('maintenance',lease,result||{status:'failed'});}
   }
-  return {router,config,processMail,maintenance,repository,tokenFor};
+  return {router,config,processMail,maintenance,repository,tokenFor,requestOwnerAcceptanceLogin};
 }

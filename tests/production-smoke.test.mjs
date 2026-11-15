@@ -18,7 +18,7 @@ function stub({release=RELEASE_ID,leak=false,brokenAsset=false,fetchFail=false,r
     if(path==='/api/config')return Response.json({leadEnabled:false,operatorConfigured:false,members:{accountsEnabled:false,subscriptionsEnabled:false,dailySendEnabled:false,secret:'never-output'}});
     if(path.endsWith('.css'))return new Response('--zonlio-blue: blue',{status:brokenAsset?404:200,headers:{'Content-Type':'text/css'}});
     if(path==='/src/admin.mjs')return new Response("export const workbench='lead-queue-filter focus-attention state.queue';",{headers:{'Content-Type':'text/javascript'}});
-    if(path==='/src/admin-acceptance.mjs')return new Response("export const acceptancePayload='admin-acceptance-form';",{headers:{'Content-Type':'text/javascript'}});
+    if(path==='/src/admin-acceptance.mjs')return new Response("export const acceptancePayload='admin-acceptance-form'; export const memberAcceptanceMarkup='admin-acceptance-member-form';",{headers:{'Content-Type':'text/javascript'}});
     if(path.endsWith('.mjs'))return new Response('export const ok=true;',{headers:{'Content-Type':'text/javascript'}});
     return htmlResponse(landingHtml[path]||'<title>Mijn Zonlio</title><link href="/src/design-system.css">');
   }};
