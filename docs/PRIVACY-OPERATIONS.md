@@ -112,7 +112,7 @@ chmod 600 /privépad/zonlio-recovery.json
 node --env-file=/privépad/zonlio-restore.env scripts/verify-restore.mjs
 ```
 
-Gebruik de werkelijke, vastgestelde repository- en privébestandslocaties. De placeholders hierboven zijn geen bekende Hostinger-uitvoerpaden. Wachtwoorden staan alleen in het privébestand, niet in argumenten of shellhistory. `RESTORE_DB_NAME` moet afwijken van `RESTORE_SOURCE_DB_NAME` en een eventueel aanwezige productie-`DB_NAME`. Het script weigert een actieve publieke/mail/Portalflag of een overgenomen `SMTP_PASSWORD` vóór het verbinding maakt.
+Gebruik de werkelijke, vastgestelde repository- en privébestandslocaties. De placeholders hierboven zijn geen bekende Hostinger-uitvoerpaden. Wachtwoorden staan alleen in het privébestand, niet in argumenten of shellhistory. `RESTORE_DB_NAME` moet afwijken van `RESTORE_SOURCE_DB_NAME` en een eventueel aanwezige productie-`DB_NAME`. Het script weigert een actieve publieke/mail/Portalflag of een overgenomen `SMTP_PASSWORD` **of** het alternatieve `SMTP_PASS` vóór het verbinding maakt.
 
 ### Betekenis van de uitslag
 
@@ -121,11 +121,13 @@ De controle verifieert de verwachte schemaonderdelen, verwijzingen zonder wezen,
 - Geen contact opnieuw actief waar het bronregister een nieuwere intrekking/sluiting heeft.
 - Geen oudere correctierevisie teruggezet. Correcte waarden moeten uit een recente beveiligde bron worden hersteld; het minimale register bewaart die privéwaarden bewust niet.
 - Geen gewiste leidgegevens of oorspronkelijke payloadhash teruggebracht; stopregistratie aanwezig.
-- Geen afgemeld/gepauzeerd abonnement opnieuw actief.
+- Geen afgemeld/gepauzeerd abonnement opnieuw actief. De checker vergelijkt ook de pseudonieme abonnee-identiteit, de stopstatus en de revisie: een oudere pauze mag geen nieuwere afmelding vervangen. Een in een backup ontbrekende stopregistratie blijft HOLD; een nieuw account met dezelfde e-mailhash mag de stop niet omzeilen.
 - Klacht-/bouncesuppressies nog aanwezig en bijbehorende accounts geblokkeerd voor aflevering.
 - Gewiste accounts afwezig en de minimale account-erasureledger behouden.
 
 Output bevat uitsluitend aantallen, schemanamen, foutcategorieën, registerdatum en een SHA-256 van het gebruikte register. Geen SQL-rijen, NAW, tokens of databasewachtwoorden. Exitcode 0 betekent dat **deze read-only controles** slagen; het activeert niets en geeft geen toestemming om deze kopie direct live te zetten.
+
+Een geslaagde schemacheck of een rustige mailwachtrij maakt een oudere opt-out niet geldig. Een missende of verouderde abonnementsstop, een teruggedraaide revisie en een identiteitwisseling met dezelfde adres-hash leveren daarom ook een **niet-geslaagde** herstelcontrole op. Het minimale register bevat bewust geen toestemming om deze automatisch opnieuw actief te maken.
 
 Bij mismatches blijft de restoredatabase geïsoleerd. Verwerk de nieuwere stops/correcties/erasures uit de beschermde actuele bron via een bevoegde herstelhandeling en controleer opnieuw. Dit script voert bewust geen automatische massale replay of dataverwijdering uit. Controleer vóór een echte omschakeling ook oude sessies, uitstaande mails, verlopen dagplannen, oude claims en berichtleveringen die na de back-up al waren uitgevoerd. Een oude mailqueue mag niet automatisch opnieuw worden verstuurd.
 
