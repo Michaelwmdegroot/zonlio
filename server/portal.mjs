@@ -14,7 +14,7 @@ const isObject = value => value !== null && typeof value === 'object' && !Array.
 
 /** Serialize the current record, never a historical payload with obsolete contact rights. */
 export function portalEvent(event, lead, observedAt) {
-  if (!lead || lead.kind !== 'housing' || lead.controller.name !== OPERATOR.name) return null;
+  if (!lead || lead.acceptanceTest || lead.kind !== 'housing' || lead.controller.name !== OPERATOR.name) return null;
   const active = Boolean(!lead.erasedAt && lead.contactRequested && !CLOSED_STATUSES.includes(lead.status)
     && Date.parse(lead.contactExpiresAt) > observedAt);
   return {
