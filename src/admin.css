@@ -9,3 +9,8 @@
 .admin-filter{display:flex;flex-wrap:wrap;gap:8px;max-width:100%}
 .admin-filter select{min-width:0;max-width:100%}
 @media(max-width:690px){.admin-filter{display:grid;grid-template-columns:1fr;gap:8px}}
+
+/* Admin-only owner acceptance: visible, persistent outcomes instead of a fleeting button state. */
+#acceptatietest .acceptance-mail-state{margin:14px 0 17px;padding:12px 14px;border-radius:12px;border:1px solid #d8e5f7;background:#f7faff;color:#425b7c;font-size:12px;line-height:1.6}
+#acceptatietest .acceptance-mail-state.warning{border-color:#e9d6a8;background:#fffaf0;color:#735726}
+#acceptatietest #acceptance-error:not(.hidden){display:block;margin-top:13px;padding:13px 15px;border-radius:12px;border:1px solid #edc0bc;background:#fff3f1;color:#8d3431;font-size:13px;line-height:1.6;font-weight:550}
