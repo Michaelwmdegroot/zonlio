@@ -2,7 +2,7 @@ import {readinessMarkup} from './admin-readiness.mjs';
 import {operationsMarkup,salesFunnelMarkup} from './admin-operations.mjs';
 import {privacyToolsMarkup,privacyOperationsMarkup} from './admin-privacy.mjs';
 import {api} from './api.mjs';
-import {acceptanceMarkup,acceptancePayload,setAcceptanceKind} from './admin-acceptance.mjs';
+import {acceptanceMarkup,acceptancePayload,setAcceptanceKind,memberAcceptanceMarkup} from './admin-acceptance.mjs';
 import {compareSelfUse,batteryScenario} from './domain.mjs';
 import {LEAD_STATUS_LABELS, CONTACT_PREFERENCES, CLOSED_STATUSES} from './advice-schema.mjs';
 
@@ -15,7 +15,7 @@ const date=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('nl
 const statuses=LEAD_STATUS_LABELS;
 const topics={battery:'Thuisbatterij',solar:'Eigen zonnestroom',contract:'Stroomcontract',charging:'Laadvoorziening',heatpump:'Verwarming',other:'Andere vraag'};
 const notifications={queued:'In wachtrij',pending:'In wachtrij',sent:'Verzonden via SMTP',failed:'Melding mislukt',cancelled:'Verzending gestopt'};
-const state={session:null,config:null,days:30,status:'',queue:'attention',stats:null,statsState:'loading',leads:[],leadsState:'loading',nextCursor:null,selected:null,selectedRevision:0,refreshing:false,readiness:null,readinessError:false,acceptanceResult:null};
+const state={session:null,config:null,days:30,status:'',queue:'attention',stats:null,statsState:'loading',leads:[],leadsState:'loading',nextCursor:null,selected:null,selectedRevision:0,refreshing:false,readiness:null,readinessError:false,acceptanceResult:null,memberAcceptanceResult:null};
 let returnFocus=null;
 
 function toast(message){const target=$('#admin-toast');target.textContent=message;target.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>target.classList.remove('show'),4500);}
@@ -50,6 +50,7 @@ function render() {
     ${operationsMarkup(state.stats?.operations)}
     ${privacyOperationsMarkup()}
     ${acceptanceMarkup({email:state.session.email,result:state.acceptanceResult})}
+    ${memberAcceptanceMarkup({email:state.session.email,result:state.memberAcceptanceResult})}
     <div class="admin-stats">${statCard('Ontvangen aanvragen',totals.leads,loading?'Wordt opgehaald':`Binnen ${state.days} dagen`)}${statCard('Nieuw',totals.new,'Nog te starten opvolging','blue')}${statCard('Bereikt',totals.contacted,'Huidige status; niet alleen een belpoging')}${statCard('Gewonnen',totals.won,'Door het team gemarkeerd','good')}</div>
     <section class="panel admin-panel workload-panel" aria-labelledby="workload-title"><div class="panel-head"><div><h2 id="workload-title">Wat vraagt nu aandacht?</h2><p>Alle open dossiers, onafhankelijk van de instroomperiode hierboven.</p></div></div><div class="workload-grid"><div><strong>${number(state.stats?.workload?.attention)}</strong><span>Vraagt nu aandacht</span></div><div><strong>${number(state.stats?.workload?.due)}</strong><span>Vandaag of achterstallig</span></div><div><strong>${number(state.stats?.workload?.expired)}</strong><span>Contacttermijn verstreken</span></div></div><p class="admin-mini">Alleen actieve, vrijwillige contactverzoeken. Nieuwe dossiers en ontbrekende vervolgacties tellen mee. <button class="button-text" type="button" data-admin-action="focus-attention">Open werkvoorraad →</button> Een verlopen verzoek geeft geen recht op nieuw verkoopcontact.</p></section>
     <div class="admin-middle"><section class="panel admin-panel"><div class="panel-head"><div><h2>Ontvangen aanvragen</h2><p>De dagelijkse instroom in deze periode.</p></div><span class="badge">${state.days} dagen</span></div>${dailyMarkup()}</section><section class="panel admin-panel system-card"><div class="panel-head"><h2>Verbindingen</h2><span class="system-dot ${mail?.configured?'ready':''}"></span></div><div class="health-row"><div><strong>E-mailmeldingen</strong><small>${mail?.lastSuccessAt?'Laatste verzending '+date(mail.lastSuccessAt):'Nog geen succesvolle verzending geregistreerd'}</small></div><span class="health-badge ${mail?.configured?'good':''}">${mail?mail.configured?'Ingesteld':'Niet ingesteld':'Onbekend'}</span></div><div class="mail-counts"><span><strong>${number(mail?.pending)}</strong> in wachtrij</span><span><strong>${number(mail?.failed)}</strong> mislukt</span></div>${state.stats?.sources?healthRow('Stroomprijzen',state.stats.sources.prices)+healthRow('Weersverwachting',state.stats.sources.weather):''}<div class="health-row"><div><strong>Woningadvies</strong><small>${esc(state.config?.controller?.name||'Ontvanger niet beschikbaar')}</small></div><span class="health-badge ${state.config?.housingAdviceEnabled?'good':''}">${state.config?.housingAdviceEnabled?'Vrijgegeven':'Niet geactiveerd'}</span></div><div class="admin-system-actions"><button class="button button-secondary" data-admin-action="verify-mail" ${!mail?.configured?'disabled':''}>Verbinding controleren</button><button class="button button-secondary" data-admin-action="retry-mail" ${!mail?.configured?'disabled':''}>Wachtrij verwerken</button></div><p class="admin-mini">Een opgeslagen aanvraag blijft zichtbaar, ook wanneer de e-mailmelding nog niet is verzonden.</p></section></div>
@@ -183,6 +184,19 @@ document.addEventListener('submit',async event=>{
     } finally {
       if(button.isConnected){button.disabled=false;button.textContent='Test opslaan en mailketen testen';}
     }
+  }
+  if(form.id==='admin-acceptance-member-form') {
+    event.preventDefault();if(!form.reportValidity())return;
+    const button=$('button[type="submit"]',form),result=$('#acceptance-member-error',form);
+    button.disabled=true;button.textContent='Inloglink aanvragen…';result.textContent='';
+    try {
+      const saved=await adminApi('/acceptance/member-login',{method:'POST',body:{confirmed:true}});
+      if(!saved.ok||!saved.acceptanceTest)throw new Error('Accounttest niet bevestigd.');
+      state.memberAcceptanceResult=saved;
+      render();
+      toast('Eigen loginlink aangevraagd. Controleer alleen je eigen inbox; bij een mailpauze wordt niet verzonden.');
+    }catch(error){if(form.isConnected)result.textContent=error.message||'De eigen loginlink kon niet worden aangevraagd.';}
+    finally{if(button.isConnected){button.disabled=false;button.textContent='Stuur mijn eigen test-inloglink';}}
   }
   if(form.id==='admin-testmail-form') {
     event.preventDefault();if(!form.reportValidity())return;
