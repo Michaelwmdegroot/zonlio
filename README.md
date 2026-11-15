@@ -2,9 +2,13 @@
 
 **Jouw stroom. Helder in beeld.** Nederlands consumentenplatform met gratis stroomtools, een persoonlijk dagplan en vrijwillig woningadvies voor **NIVO Groep Holland BV**. Website: [zonlio.nl](https://zonlio.nl). Contact: **info@zonlio.nl**.
 
-## Actuele stand — 15 november 2026: Release 05 LIVE, commercieel GO nog open
+## Actuele stand — 15 november 2026: Release 06 LIVE, commerciële vrijgave HOLD
 
-**Applicatiemarker:** `nivo-workbench-05-20261115`. De live premium stroomtools, MySQL-beheer, SEO-basis en de automatische **Pim-werkvoorraad** zijn getoetst; 22/22 publieke read-only probes zijn geslaagd. Er is **één echte maintenance-heartbeat** geregistreerd. Herhaalde ticks na een gecontroleerde herstart, volledige klant-/account-/dagmail-E2E en afzonderlijke restore zijn nog niet aangetoond. Alle zes commerciële/Portal-flags waren bij de laatste productiecheck **uit**. Codepublicatie is niet hetzelfde als commerciële GO.
+**Productiemarker:** `owner-acceptance-06-20261115`, extern bevestigd met [nieuwe asset- en releasecontrole](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43659814682). De afgeschermde beheerder kan nu één eigen testadviesaanvraag door de echte MySQL-/mailketen sturen zonder publieke leads/accounts/dagmail te openen. De testdossiers zijn gescheiden van commerciële KPI's en Portal. De twee dossiermailstatussen zijn apart zichtbaar, maar echte inboxaflevering moet nog worden geverifieerd. Release 06 heeft groene [MySQL-/app-CI](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43659735608) en [Chromium/WebKit-CI](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43659735523).
+
+**Autonomie:** verschillende echte onderhoudstijdstempels zijn in MySQL via onafhankelijke GitHub-watch bevestigd, laatst [00:45:02.604 UTC](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43659859906); een **bewuste appherstart met twee ticks erna**, echte lead-/account-/dagmail-E2E, een **niet-destructieve backuprestore naar aparte database** en formele privacy-/commercial GO blijven open. `cronExpected=false` in de gecontroleerde runtime: actieve stale-cronalarmering is nog niet bewezen. **Alle zes publieke/Portal-gates zijn uit.** Codepublicatie is geen commerciële vrijgave.
+
+**Releasebewijs:** [Release 06](docs/RELEASE-06-EVIDENCE-2026-11-15.md) · [Eigen testprocedure](docs/OWNER-ACCEPTANCE-06-2026-11-15.md) · [Historische Release 05](docs/RELEASE-05-EVIDENCE-2026-11-15.md).
 
 **Nieuwe agent begint bij:** [definitieve projectoverdracht](docs/HANDOFF-FINALIZATION-2026-11-15.md), [release-05 bewijs](docs/RELEASE-05-EVIDENCE-2026-11-15.md) en de [nieuwe GPT-6 Pro-startprompt](docs/NEXT-GPT6PRO-START-2026-11-15.md). De [masterchecklist](docs/COMPLETION-MASTER-CHECKLIST-2026-11-14.md), [eigenaarspoorten](docs/OWNER-INPUT-AND-GATES-2026-11-14.md), [operationsrunbook](docs/AUTONOMOUS-OPERATIONS.md) en [privacyrunbook](docs/PRIVACY-OPERATIONS.md) blijven uitvoeringsdocumenten. Oude pilot-/groeiprompts en release 04 zijn historische context, geen actuele status.
 
