@@ -446,6 +446,56 @@ test('owner acceptance uses live lead pipeline with closed public flags, without
   assert.doesNotMatch(JSON.stringify(f.logs),/Eigenaar Test|owner@example.invalid/);
 });
 
+
+test('private P0 owner acceptance works while commercial controller confirmation and all public gates remain held', async t => {
+  const messages = [];
+  const f = await setup(t, { env: {
+    LEAD_CONTROLLER_NAME: 'NIVO Groep Holland BV', LEAD_CONTROLLER_CONFIRMED: 'false',
+    LEAD_ENABLED: 'false', HOUSING_ADVICE_ENABLED: 'false', PORTAL_EXPORT_ENABLED: 'false',
+    MAIL_SEND_PAUSED: 'true', SMTP_DAILY_LIMIT: '50',
+  }, mailTransport: { sendMail: async message => {
+    messages.push(message); return { accepted: [message.to], rejected: [] };
+  } } });
+  if (!f) return;
+  const session = await f.login();
+  const input = { kind: 'general', confirmed: true, lead: {
+    requestId: randomUUID(), name: 'Private Owner QA', channel: 'email',
+    email: f.env.ADMIN_EMAIL, topic: 'battery', postcode: '2311AB', message: 'Synthetic private acceptance',
+  } };
+  assert.equal((await f.api('/form-token')).status, 503);
+  assert.equal((await f.api('/leads', { method: 'POST', body: {} })).status, 503);
+  assert.equal((await f.api('/housing-leads', { method: 'POST', body: {} })).status, 503);
+  assert.equal((await f.api('/admin/acceptance/lead', { method: 'POST', body: input })).status, 401);
+  assert.equal((await f.api('/admin/acceptance/lead', { cookie: session.cookie, method: 'POST', body: input })).status, 403);
+  const response = await f.api('/admin/acceptance/lead', { ...session, method: 'POST', body: input });
+  assert.equal(response.status, 201, 'Private QA does not depend on the commercial activation flag');
+  assert.equal(response.body.mailPaused, true);
+  assert.equal(response.body.publicLeadEnabled, false);
+  assert.equal(response.body.publicHousingEnabled, false);
+  assert.equal((await f.api('/admin/acceptance/lead', { ...session, method: 'POST', body: input })).body.duplicate, true);
+  assert.equal((await f.api('/admin/leads?queue=acceptance', session)).body.leads.length, 1);
+  assert.equal((await f.backend.store.mailStats()).pending, 2);
+  assert.equal((await f.backend.store.portalStats()).pending || 0, 0);
+  assert.equal(messages.length, 0, 'The private test never overrides MAIL_SEND_PAUSED');
+  assert.equal((await f.api('/admin/readiness', session)).body.checks.find(c => c.id === 'operator_confirmation').status, 'blocked');
+});
+
+test('private owner acceptance still rejects a mismatched NIVO receiver even with admin login', async t => {
+  const f = await setup(t, { env: {
+    LEAD_CONTROLLER_NAME: 'Incorrect third-party business', LEAD_CONTROLLER_CONFIRMED: 'false',
+    LEAD_ENABLED: 'false', HOUSING_ADVICE_ENABLED: 'false',
+  } });
+  if (!f) return;
+  const session = await f.login();
+  const request = { kind: 'general', confirmed: true, lead: {
+    requestId: randomUUID(), name: 'Private QA', channel: 'email',
+    email: f.env.ADMIN_EMAIL, topic: 'battery',
+  } };
+  const denied = await f.api('/admin/acceptance/lead', { ...session, method: 'POST', body: request });
+  assert.equal(denied.status, 503);
+  assert.equal((await f.api('/admin/leads?queue=acceptance', session)).body.leads.length, 0);
+});
+
 test('owner acceptance housing never creates Portal events, even after withdrawal and privacy erasure',async t=>{
   const f=await setup(t,{env:{LEAD_ENABLED:'false',HOUSING_ADVICE_ENABLED:'false',
     LEAD_CONTROLLER_CONFIRMED:'true',LEAD_CONTROLLER_NAME:'NIVO Groep Holland BV',

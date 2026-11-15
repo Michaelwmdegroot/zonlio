@@ -15,7 +15,7 @@ const date=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('nl
 const statuses=LEAD_STATUS_LABELS;
 const topics={battery:'Thuisbatterij',solar:'Eigen zonnestroom',contract:'Stroomcontract',charging:'Laadvoorziening',heatpump:'Verwarming',other:'Andere vraag'};
 const notifications={queued:'In wachtrij',pending:'In wachtrij',sent:'Verzonden via SMTP',failed:'Melding mislukt',cancelled:'Verzending gestopt'};
-const state={session:null,config:null,days:30,status:'',queue:'attention',stats:null,statsState:'loading',leads:[],leadsState:'loading',nextCursor:null,selected:null,selectedRevision:0,refreshing:false,readiness:null,readinessError:false,acceptanceResult:null,memberAcceptanceResult:null};
+const state={session:null,config:null,days:30,status:'',queue:'attention',stats:null,statsState:'loading',leads:[],leadsState:'loading',nextCursor:null,selected:null,selectedRevision:0,refreshing:false,readiness:null,readinessError:false,acceptanceResult:null,acceptanceError:'',memberAcceptanceResult:null};
 let returnFocus=null;
 
 function toast(message){const target=$('#admin-toast');target.textContent=message;target.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>target.classList.remove('show'),4500);}
@@ -49,7 +49,7 @@ function render() {
     ${readinessMarkup(state.readiness,{open:readinessOpen,loading:state.refreshing,error:state.readinessError})}
     ${operationsMarkup(state.stats?.operations)}
     ${privacyOperationsMarkup()}
-    ${acceptanceMarkup({email:state.session.email,result:state.acceptanceResult})}
+    ${acceptanceMarkup({email:state.session.email,result:state.acceptanceResult,error:state.acceptanceError,mailStatus:state.stats?.mail})}
     ${memberAcceptanceMarkup({email:state.session.email,result:state.memberAcceptanceResult})}
     <div class="admin-stats">${statCard('Ontvangen aanvragen',totals.leads,loading?'Wordt opgehaald':`Binnen ${state.days} dagen`)}${statCard('Nieuw',totals.new,'Nog te starten opvolging','blue')}${statCard('Bereikt',totals.contacted,'Huidige status; niet alleen een belpoging')}${statCard('Gewonnen',totals.won,'Door het team gemarkeerd','good')}</div>
     <section class="panel admin-panel workload-panel" aria-labelledby="workload-title"><div class="panel-head"><div><h2 id="workload-title">Wat vraagt nu aandacht?</h2><p>Alle open dossiers, onafhankelijk van de instroomperiode hierboven.</p></div></div><div class="workload-grid"><div><strong>${number(state.stats?.workload?.attention)}</strong><span>Vraagt nu aandacht</span></div><div><strong>${number(state.stats?.workload?.due)}</strong><span>Vandaag of achterstallig</span></div><div><strong>${number(state.stats?.workload?.expired)}</strong><span>Contacttermijn verstreken</span></div></div><p class="admin-mini">Alleen actieve, vrijwillige contactverzoeken. Nieuwe dossiers en ontbrekende vervolgacties tellen mee. <button class="button-text" type="button" data-admin-action="focus-attention">Open werkvoorraad →</button> Een verlopen verzoek geeft geen recht op nieuw verkoopcontact.</p></section>
@@ -172,15 +172,17 @@ document.addEventListener('submit',async event=>{
   if(form.id==='admin-acceptance-form') {
     event.preventDefault();if(!form.reportValidity())return;
     const button=$('button[type="submit"]',form),result=$('#acceptance-error',form);
-    button.disabled=true;button.textContent='Veilig opslaan…';result.textContent='';
+    button.disabled=true;button.textContent='Veilig opslaan…';result.textContent='';result.classList.add('hidden');state.acceptanceError='';
     try {
       const saved=await adminApi('/acceptance/lead',{method:'POST',body:acceptancePayload(form)});
       if(!saved.acceptanceTest||!saved.id)throw new Error('De acceptatieaanvraag is niet bevestigd.');
       state.acceptanceResult=saved;state.queue='acceptance';state.status='';
       await refresh();
-      toast('Eigen testdossier veilig opgeslagen. Controleer de mailwachtrij en je eigen inbox.');
+      toast(saved.mailPaused?'Eigen testdossier opgeslagen. Mailverzending is gepauzeerd; er is nog niets afgeleverd.':'Eigen testdossier opgeslagen. Controleer de twee SMTP-statussen en je eigen inbox.');
     } catch(error) {
-      if(form.isConnected)result.textContent=error.message||'De acceptatieaanvraag is niet bevestigd.';
+      state.acceptanceError=error.message||'De acceptatieaanvraag is niet bevestigd.';
+      if(form.isConnected){result.textContent=state.acceptanceError;result.classList.remove('hidden');}
+      toast('Eigenaarstest niet opgeslagen. '+state.acceptanceError);
     } finally {
       if(button.isConnected){button.disabled=false;button.textContent='Test opslaan en mailketen testen';}
     }
