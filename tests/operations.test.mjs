@@ -70,7 +70,7 @@ test('zero mail quota is a real stop; exhausted quota defers without losing a le
 
 test('suppression blocks customer email but preserves internal notification; closure blocks queued work',async t=>{
   const f=await fixture(t);await f.lead();await f.store.members.suppressEmail('synthetic@example.invalid','complaint');
-  const result=await f.mail.processBatch();assert.equal(result.sent,1);assert.equal(result.cancelled,1);assert.equal(f.sent[0].to,'info@zonlio.nl');
+  const result=await f.mail.processBatch();assert.equal(result.sent,1);assert.equal(result.cancelled,1);assert.equal(f.sent[0].to,'portal@nivogroepholland.nl');
   const lead=await f.lead({email:'second@example.invalid'});await f.store.updateLead(lead.id,{status:'closed',actor:'qa'});
   assert.equal((await f.mail.processBatch()).cancelled,2);assert.equal(f.sent.length,1);
 });
