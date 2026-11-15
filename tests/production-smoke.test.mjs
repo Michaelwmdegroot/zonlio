@@ -88,3 +88,14 @@ test('live workbench script must contain queue controls before declaring release
   assert.equal(result.endpoints['/src/admin.mjs'].workbenchPresent,false);
   assert.equal(result.endpoints['/src/admin.mjs'].passed,false);
 });
+
+test('production marker and owner acceptance asset distinguish a deployed release from stale application files', async()=>{
+  const stale=new Response('export const oldAdmin=true;',{headers:{'Content-Type':'text/javascript'}});
+  const report=await observeProduction(stub({responses:{'/src/admin-acceptance.mjs':stale}}));
+  assert.equal(report.publicChecksPassed,false);
+  assert.equal(report.endpoints['/src/admin-acceptance.mjs'].ownerAcceptanceAssetPresent,false);
+  assert.equal(report.endpoints['/src/admin-acceptance.mjs'].passed,false);
+  const missing=new Response('Not Found',{status:404,headers:{'Content-Type':'text/plain'}});
+  const failed=await observeProduction(stub({responses:{'/src/admin-acceptance.mjs':missing}}));
+  assert.equal(failed.publicChecksPassed,false);
+});
