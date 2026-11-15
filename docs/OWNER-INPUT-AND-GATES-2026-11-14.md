@@ -1,5 +1,8 @@
 # Wat de eigenaar nog nodig heeft te doen of goed te keuren — Zonlio
 
+> **Nieuwe agent begint hierna bij [fase-07-eindoverdracht](HANDOFF-PHASE07-CLOSEOUT-2026-11-15.md), niet bij een nieuw cron- of SMTP-inrichtingstraject.** De enige noodzakelijke resterende eigenaaracties zijn een **echte eigen aanvraag plus beide ontvangstcontroles**, **eigen accountmagic-linktest**, **gecontroleerde Hostinger-appherstart**, **herstel naar een aparte MySQL-DB** en afzonderlijke **privacy-/NIVO-proces-/commerciële GO** wanneer P0-bewijs compleet is. Lever geen secrets of NAW via chat/GitHub. [Actuele startprompt](NEXT-GPT6PRO-START-POST07-2026-11-15.md).
+
+
 > **Actueel · Release 07 (15 november 2026):** beide privé-eigenaaracceptaties zijn nu beschikbaar in de beheeromgeving: [test-NIVO-adviesdossier](OWNER-ACCEPTANCE-06-2026-11-15.md) en [eigen Mijn Zonlio-loginlink](OWNER-ACCOUNT-ACCEPTANCE-2026-11-15.md). Een echte aanvraag, twee ontvangen dossiermails, eigen ontvangen accountlink met bevestiging/replay, Hostinger-appherstart + twee volgende ticks en een backup in een afzonderlijke test-MySQL herstellen zijn **nog niet live aangetoond**. De effectieve mailpauze geldt altijd; zet niets blind om. Geen nieuwe cron-installatie, geen los SMTP-testmailtje, geen nieuwe NIVO-bedrijfsgegevens nodig. Publieke/dagmail/Portal-flags uit tot expliciete vrijgave. [Release-07-bewijs](RELEASE-07-EVIDENCE-2026-11-15.md).
 
 
