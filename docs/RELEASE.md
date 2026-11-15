@@ -1,5 +1,8 @@
 # Actuele release
 
+> **15-11-2026 afsluiting ontwikkelfase 07:** huidig echt functionele release blijft `owner-qa-07-20261115`, volledig getoetst in [Release-07-evidence](RELEASE-07-EVIDENCE-2026-11-15.md). Zie [afgesloten projectfase / nieuwe handoff](HANDOFF-PHASE07-CLOSEOUT-2026-11-15.md) en [volgende agentopdracht](NEXT-GPT6PRO-START-POST07-2026-11-15.md). De geplande onafhankelijke watch heeft om 01:54:32 UTC een in MySQL vastgelegde tick om 01:50:03.548 UTC gezien. **Technische fase afgerond, commerciële productvrijgave HOLD.**
+
+
 **Live productiemarker: `owner-qa-07-20261115`.** [Release-07-evidence](RELEASE-07-EVIDENCE-2026-11-15.md) bevestigt de originele MySQL8-/browsercontroles en de live release-/assetcheck; privé Mijn Zonlio-login-eigenaarstest [PR #22](https://github.com/Michaelwmdegroot/zonlio/pull/22) en zelfstandige staleness-watchdog [PR #23](https://github.com/Michaelwmdegroot/zonlio/pull/23). Geen publieke accounts, leads, dagmails of Portal-export. **Echte inboxen, gecontroleerde herstart, restore en commerciële GO zijn open.**
 
 ## Historische Release 06 — eigen aanvraagacceptatie
