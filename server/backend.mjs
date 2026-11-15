@@ -217,6 +217,51 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     if (!saved.duplicate) backgroundMail();
   });
 
+  // Authenticated owner-only acceptance, while the public lead gates stay closed.
+  // The test goes through exactly the normal validator, transactional lead store and
+  // outbox, but the customer recipient must match the logged-in admin mailbox.
+  router.post('/admin/acceptance/lead', administrator, csrf, async (request, response) => {
+    if (!intakeReady || !operator.confirmed) {
+      return response.status(503).json({ error: 'De veilige acceptatietest vraagt een werkende database en bevestigde NIVO-ontvanger.' });
+    }
+    const input = request.body;
+    const kinds = ['general', 'housing'];
+    const fields = ['requestId', 'name', 'channel', 'email', 'phone', 'postcode', 'topic', 'message', 'housing', 'contactPreference'];
+    if (!isObject(input) || Object.keys(input).some(key => !['kind','confirmed','lead'].includes(key))
+      || input.confirmed !== true || !kinds.includes(input.kind) || !isObject(input.lead)
+      || Object.keys(input.lead).some(key => !fields.includes(key))) {
+      return response.status(422).json({ error: 'Bevestig één eigen acceptatieaanvraag met toegestane velden.' });
+    }
+    const ownerEmail = emailAddress(input.lead.email);
+    if (!ownerEmail || ownerEmail.toLowerCase() !== request.adminSession.email.toLowerCase()
+      || input.lead.channel !== (input.kind === 'housing' ? 'phone' : 'email')
+      || (input.kind === 'general' && (input.lead.housing !== undefined || input.lead.contactPreference !== undefined))) {
+      return response.status(422).json({ error: 'Deze test mag alleen naar het eigen beheeradres en gebruikt het juiste contactkanaal.' });
+    }
+    if (!auth.limiter.take(`admin-acceptance:${request.adminSession.email}`, 3, 24 * 3600000)) {
+      return response.status(429).json({ error: 'Maximaal drie acceptatietests per 24 uur. Gebruik het bestaande dossier.' });
+    }
+    const housing = input.kind === 'housing';
+    const candidate = {
+      ...input.lead, formToken: auth.issueFormToken().token, website: '',
+      contactRequested: true, shareScenario: false, scenario: undefined,
+      consentVersion: housing ? HOUSING_CONSENT_VERSION : CONSENT_VERSION,
+      sourcePath: 'overzicht',
+    };
+    const { value, errors } = validateLead(candidate, { auth, controller, housing,
+      contactTexts: housing ? { phone: housingContactText } : contactTexts });
+    if (Object.keys(errors).length) {
+      return response.status(422).json({ error: 'Controleer de testgegevens.', fieldErrors: errors });
+    }
+    const saved = await store.createLead(value, sha256(JSON.stringify(value)), { acceptance: true });
+    response.status(saved.duplicate ? 200 : 201).json({
+      ok: true, acceptanceTest: true, id: saved.lead.id, reference: saved.lead.reference,
+      duplicate: saved.duplicate, notification: 'queued', mailPaused: mail.paused,
+      publicLeadEnabled: enabled, publicHousingEnabled: housingAdviceEnabled,
+    });
+    if (!saved.duplicate) backgroundMail();
+  });
+
   router.post('/events', origin, async (request, response) => {
     if (!analyticsEnabled) return response.status(503).json({ error: 'Statistieken zijn niet beschikbaar.' });
     const body = request.body;
@@ -276,7 +321,7 @@ export async function createBackend({ env = process.env, now = () => Date.now(),
     const { status, cursor, queue } = request.query;
     const limit = Number(request.query.limit || 30);
     if ((status && !STATUSES.includes(status)) || (cursor && !UUID.test(cursor))
-      || (queue !== undefined && queue !== 'attention') || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+      || (queue !== undefined && !['attention', 'acceptance'].includes(queue)) || !Number.isInteger(limit) || limit < 1 || limit > 100) {
       return response.status(422).json({ error: 'Ongeldig filter of paginanummer.' });
     }
     response.json(await store.listLeads({ status, cursor, limit, queue }));

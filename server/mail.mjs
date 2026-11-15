@@ -26,14 +26,14 @@ export function createMail({ env = process.env, store, transport, logger = () =>
 
   function messageFor(lead, item) {
     const customer = item.kind === 'customer_confirmation';
-    const subject = customer ? `Je adviesaanvraag bij Zonlio: ${lead.reference}` : `Zonlio adviesaanvraag ${lead.reference}`;
+    const subject = (lead.acceptanceTest ? '[TEST] ' : '') + (customer ? `Je adviesaanvraag bij Zonlio: ${lead.reference}` : `Zonlio adviesaanvraag ${lead.reference}`);
     const text = customer
-      ? [`Beste ${lead.name},`, '', `Je adviesaanvraag ${lead.reference} is ontvangen.`,
+      ? [`Beste ${lead.name},`, '', ...(lead.acceptanceTest ? ['Dit is een gecontroleerde eigenaarstest, geen echte klantaanvraag.', ''] : []), `Je adviesaanvraag ${lead.reference} is ontvangen.`,
         `Je hebt ${lead.controller.name} gevraagd om via ${lead.channel === 'phone' ? 'telefoon' : 'e-mail'} te reageren op je vraag over ${lead.topic}.`,
         '', 'Je aanvraag is vrijblijvend. Dit is geen nieuwsbriefinschrijving.',
         `Voor een wijziging of intrekking kun je antwoorden op deze e-mail of mailen naar ${lead.controller.email}.`,
         '', 'Zonlio', publicUrl].join('\n')
-      : [`Nieuwe adviesaanvraag ${lead.reference}`, `Ontvangen: ${lead.createdAt}`,
+      : [lead.acceptanceTest ? 'Gecontroleerde eigenaarstest — NIET als echte lead opvolgen' : `Nieuwe adviesaanvraag ${lead.reference}`, `Ontvangen: ${lead.createdAt}`,
         `Onderwerp: ${lead.topic}`, `Contactkanaal: ${lead.channel}`,
         lead.kind === 'housing' ? 'Type: woningadvies' : 'Type: algemene adviesvraag', '',
         `Bekijk de aanvraag na inloggen: ${publicUrl.replace(/\/$/, '')}/admin#lead=${lead.id}`,
