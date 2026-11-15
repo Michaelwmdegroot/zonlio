@@ -123,6 +123,8 @@ Een beheeralert groepeert open afwijkingen in één mail met een link naar behee
 
 De watch controleert bereikbaarheid, de actuele databaseleesproef en, wanneer cron wordt verwacht, recente onderhoudsafronding en gereedheid van de bronadapters. Daardoor kan hij ook een geheel gestopte app of cron signaleren, terwijl de app dan zelf geen waarschuwing kan mailen. Hij inspecteert geen persoonlijke dossiers en vervangt geen inbox-/E2E-/restoreproef.
 
+Sinds release 05 geeft de onafhankelijke watch in zijn geschoonde uitvoer ook `maintenanceRecorded`, `lastMaintenanceAt` en `maintenanceAgeMinutes` door vanuit de openbare health-endpoint. Dit is een **werkelijk opgeslagen laatste tick** als de waarde bestaat, óók wanneer `OPS_EXPECT_CRON=false`. Het is geen bewijs van drie geplande ticks na een herstart, geen nieuwe databasequery met rechten en geen activering van cron of mail. Controleer het onderscheid `maintenanceRecorded:false` versus `true` in de eerste echte GitHub-run.
+
 **Nog te bewijzen:** Actions moet op de repository daadwerkelijk actief zijn, geplande runs moeten terugkeren en de bedoelde beheerder moet GitHub-meldingen over mislukte workflowruns daadwerkelijk ontvangen. Een groen handmatig workflowresultaat bewijst die foutmeldingontvangst niet. Leg dit afzonderlijk vast zonder productie expres stuk te maken. GitHub-planningen en notificaties zijn geen gegarandeerde realtime alarmering; controleer bij twijfel ook de runhistorie. Er is geen betaalde monitor aangeschaft.
 
 ## 5. Gedeeld mailbudget en dagplanvensters
