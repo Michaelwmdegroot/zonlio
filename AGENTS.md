@@ -1,4 +1,4 @@
-**LEES EERST DE ACTUELE BEDRIJFSKLARE OVERDRACHT:** `docs/COMPLETION-MASTER-CHECKLIST-2026-11-14.md`, `docs/OWNER-INPUT-AND-GATES-2026-11-14.md` en `docs/START-GPT6PRO-COMPLETION-2026-11-14.md`. Oude pilotstartprompt is historisch. Werk bewezen afgeronde mailtest/bedrijfsgegevens niet opnieuw uit; behoud afzonderlijke publieke activeringspoorten en Portal-uitgeschakeld.
+**15 NOVEMBER 2026 — START MET DE NIEUWE OVERDRACHT:** lees `docs/HANDOFF-FINALIZATION-2026-11-15.md`, `docs/RELEASE-05-EVIDENCE-2026-11-15.md` en `docs/NEXT-GPT6PRO-START-2026-11-15.md` **vóór** de oudere masterchecklist, eigenaarspoorten en runbooks. Laat oude 14-november-instructies de actuele feiten niet overschrijven. Vraag bevestigde NIVO-bedrijfsgegevens, de ontvangen SMTP-testmail of de reeds ingestelde Hostinger-cron **niet opnieuw**. Eén echte maintenance-tick is aangetoond; herhaling/restart en productie-E2E staan nog open. Houd de Portal uit en publieke commerciële activering apart.
 
 # Zonlio — afspraken voor verdere ontwikkeling
 
@@ -25,3 +25,10 @@ Lees `docs/GROWTH-02-2026-11-14.md` en `docs/PORTAL-CONTRACT-v1.md`. Exploitant/
 ## Afrondingsrelease 04
 
 Algemene intake heeft nu een eigen `LEAD_ENABLED` naast `HOUSING_ADVICE_ENABLED`; bedrijfsbevestiging activeert geen intake. Alle commerciële flags blijven afzonderlijk. Nieuwe schema’s zijn additief. Test code op PR met MySQL 8 én Chromium/WebKit voordat main automatisch naar Hostinger gaat. Beoordeel daarna actuele publieke observatie en effectieve flags. Geen bewijs van productiecron, inboxketens of echte restore afleiden uit CI. Hostinger hPanel-sign-in was vanuit de cloudbrowser geblokkeerd; exacte eigenaarstappen staan in de runbooks. De bestaande enkele beheeridentiteit is geen medewerkersrollenstelsel.
+
+## Release 05 en overdracht naar de volgende agent
+
+- Huidige laatste functionele productieversie: `nivo-workbench-05-20261115`; werkvoorraad van Pim met serverfilter en datumplanning **live als statisch admin-JavaScript**. [Release-05 bewijs](docs/RELEASE-05-EVIDENCE-2026-11-15.md). Laatste functionele appcommit vóór documentatie: `396d19fc8fde5890e043e94624d13e5166b6a096`.
+- CI (Node24, echte MySQL8, Chromium, WebKit) en 22 read-only productieprobes waren groen. Externe watch zag `lastMaintenanceAt=2026-11-15T00:00:02.878Z`, maar `cronExpected:false`. Geen volledige cron-/mail-/leads-/restore-E2E claimen.
+- Beheertaak `Nu opvolgen` is geen commerciële toestemming of gefingeerd telefonisch contact. Werkgebied, terugbeltermijn, fallback en toegangsrechten vragen nog beleidskeuzes. De uitvoeringsprioriteiten, eigenaarminimale afhankelijkheden en actuele issues staan in de nieuwe overdracht.
+- **Werksnelheid is gewenst:** bouw concrete geblokkeerde P0-functies, test en merge veilig; geen nieuwe stagingfase, frameworkmigratie of lang mailpauzecircuit. Veiligheids- en publieke vrijgavepoorten blijven wel gelden. Geen nieuwe betaalde diensten of secrets in repository.

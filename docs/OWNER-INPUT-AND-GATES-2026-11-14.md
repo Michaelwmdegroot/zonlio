@@ -1,6 +1,6 @@
 # Wat de eigenaar nog nodig heeft te doen of goed te keuren — Zonlio
 
-**Statusdatum:** 14 november 2026. Dit document vraagt **geen herhaling van reeds beantwoorde vragen** en bevat geen privaat testdossier of geheim.
+**Statusdatum:** 14 november 2026, **geactualiseerd 15 november 2026**. **De Hostinger-cron is al aangemaakt**; na de symlinkcorrectie is minimaal één werkelijk opgeslagen tick aangetroffen. Geen herinstallatie vragen. Voor actuele prioriteiten/bewijs zie [definitieve overdracht](HANDOFF-FINALIZATION-2026-11-15.md) en [nieuwe startprompt](NEXT-GPT6PRO-START-2026-11-15.md). Dit document vraagt **geen herhaling van reeds beantwoorde vragen** en bevat geen privaat testdossier of geheim.
 
 ## Vaststaande besluiten — NIET opnieuw vragen
 
@@ -10,7 +10,7 @@
 - Geen nieuwe betaalde tools, geen nieuwe technische architectuur; GitHub `main` en automatische Hostinger-implementaties behouden.
 - Avond-/ochtenddagplannen zijn akkoord als opt-in-dienst met geldige data; geen automatische verkoopmailing.
 - De eigenaar heeft **één gecontroleerde eigen testaanvraag met zijn persoonsgegevens** eerder expliciet toegestaan. Die gegevens zijn beschikbaar in de eerdere privéchat, maar zijn NIET toegestaan in GitHub, logs, docs, reviewbeelden of een algemene agentprompt. Vraag ze niet opnieuw; gebruik een beveiligde productie-UI of afgesproken veilige testhandeling.
-- Hostinger-mailbox heeft **100 uitgaande mails per rollende 24 uur**. SMTP-verbinding werkt; handmatig aangevraagde Zonlio-testmail is **daadwerkelijk ontvangen en geopend**. Het ingestelde appbudget toont `Correct`; exact runtimegetal niet publiek bewezen. Voorgesteld appbudget 50 en daarmee max. circa 40 dagplannen; controleer feitelijk mailverbruik.
+- Hostinger-mailbox heeft **100 uitgaande mails per rollende 24 uur**. SMTP-verbinding werkt; handmatig aangevraagde Zonlio-testmail is **daadwerkelijk ontvangen en geopend**. Een eigenaarsweergave van Zonlio Beheer toonde **1 van 50 gebruikt, 49 beschikbaar, dagmailplafond 40** op dat moment. Dat is het geobserveerde appbudget, niet de actuele teller of het totale Hostinger-verbruik; controleer feitelijk mailverbruik.
 - De eigenaar heeft de runtime juridische naam/contact als `Correct` getoond; dit hoeft niet opnieuw ingesteld te worden, tenzij nieuwe status afwijkt.
 
 ## Wat de agent grotendeels zelfstandig kan doen
@@ -23,7 +23,7 @@ De agent kan op basis van de broncode, GitHub, officiële documentatie en eigen 
 
 De bouw-/testvoortgang staat in [release 04](AUTONOMY-04-RELEASE-2026-11-14.md). Hostinger hPanel blokkeerde aanmelden vanuit de cloudbrowser; daarom blijven uitsluitend de noodzakelijke hosting-/productiehandelingen hier bij de eigenaar. De mailconnector is geen hostingtoegang.
 
-- **E1:** voer de exacte Node24-cronopdracht en drie-ticks-/restartcontrole uit [AUTONOMOUS-OPERATIONS.md](AUTONOMOUS-OPERATIONS.md).
+- **E1 (update):** cronopdracht **al ingesteld**, één tick vastgelegd. Alleen geplande herhaling / herstartbewijs nog afmaken volgens [AUTONOMOUS-OPERATIONS.md](AUTONOMOUS-OPERATIONS.md).
 - **E2/E5:** gebruik de aparte restorechecker, het privéherstelregister en het concrete conceptbewaarbeleid uit [PRIVACY-OPERATIONS.md](PRIVACY-OPERATIONS.md).
 - **E3/E6:** leg de echte eigen account-/advies-/dagmailketens en geschoonde authenticatie-/afmeldresultaten vast; de losse SMTP-test hoeft niet opnieuw.
 - **E4:** bekrachtig alleen de open proceskeuzes in [NIVO-FOLLOWUP.md](NIVO-FOLLOWUP.md). Pim, entiteit en route staan vast; deel geen beheerwachtwoord als teamoplossing.
@@ -31,12 +31,12 @@ De bouw-/testvoortgang staat in [release 04](AUTONOMY-04-RELEASE-2026-11-14.md).
 
 ## Wat we nog echt van de eigenaar nodig hebben
 
-### E1 — Hostinger Cron-taak instellen / uitvoering aantonen (eigenaarshandeling)
+### E1 — Cron bestaat; alleen herhaalde werking na herstart nog aantonen
 
-- Agent levert een **exacte veilige** crontaak-instructie uit de actuele code, inclusief uitvoerpad/configuratie en Authorization-header uit veilige serverinstellingen.
-- Eigenaar voert deze in hPanel uit als de agent geen hostingtool heeft.
-- Deel alleen een **geschoond screenshot/status** met herhaalde succesvolle ticks, ook na restart; geen `CRON_SECRET` of URL met secrets.
-- **Blokkeert automatische dagmail en betrouwbare queue-herverwerking.**
+- **Gedaan:** eigenaar heeft één Node24 Hostinger-cronjob voor elke vijf minuten ingesteld; na [symlinkfix PR #14](https://github.com/Michaelwmdegroot/zonlio/pull/14) toont de [GitHub-operationscheck](https://github.com/Michaelwmdegroot/zonlio/actions/runs/43656137432) **minimaal één echte opgeslagen maintenance-tick** op `2026-11-15T00:00:02.878Z`.
+- **Nog open:** leg drie geplande ticks vast, inclusief minimaal twee na een gecontroleerde appherstart; verifieer vervolgens de actuele bewaking en eventuele echte alertontvangst. **Vraag niet de cronjob opnieuw in te voeren.**
+- Eigenaar hoeft alleen een beperkte appherstart of ingelogde beheercontrole te doen wanneer de agent die niet geautoriseerd zelf kan uitvoeren. Geen `CRON_SECRET` of volledige `.env` in chat/GitHub.
+- Pas de claim 'volledig autonoom' en onbeperkte dagmail aan nadat herhaling/continuïteit zijn bewezen.
 
 ### E2 — Databaseback-up en afzonderlijke restoreproef (eigenaar/Hostinger-beheer)
 
